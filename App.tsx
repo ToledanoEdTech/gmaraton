@@ -34,6 +34,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
   const [logoError, setLogoError] = useState(false);
+  const [yeshivaImageError, setYeshivaImageError] = useState(false);
 
   // Load Data function
   const loadData = async () => {
@@ -176,54 +177,75 @@ const App: React.FC = () => {
       <div className="relative z-10 flex-1 flex flex-col p-4 md:p-6 lg:p-8 max-w-[1600px] mx-auto w-full">
         
         {/* Header */}
-        <header className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6 border-b border-slate-700/50 pb-8 bg-slate-900/40 p-6 rounded-3xl backdrop-blur-md shadow-xl border border-white/5">
-          <div className="flex items-center gap-6 group">
-             <div className="relative">
-                <div className="absolute inset-0 bg-amber-500 blur-lg opacity-20 group-hover:opacity-40 transition-opacity"></div>
-                <div className={`relative w-40 h-40 md:w-48 md:h-48 rounded-2xl rotate-3 group-hover:rotate-6 transition-transform flex items-center justify-center shadow-2xl shadow-amber-500/20 ring-2 ring-slate-900 border border-amber-300/30 overflow-hidden ${logoError ? 'bg-gradient-to-br from-amber-400 to-yellow-600' : 'bg-white'}`}>
-                    {logoError ? (
-                      <BookOpen className="text-slate-900 w-16 h-16 md:w-20 md:h-20" />
-                    ) : (
-                      <img 
-                        src="/logo.png" 
-                        alt="לוגו ישיבת צביה אלישיב לוד" 
-                        className="w-[90%] h-[90%] object-contain"
-                        onError={() => setLogoError(true)}
-                      />
-                    )}
-                </div>
-             </div>
-             <div>
-                <h1 className="text-4xl md:text-6xl font-black text-white tracking-tight drop-shadow-lg">
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-amber-600">מבצע הגמרתון</span>
-                </h1>
-                <p className="text-slate-400 text-lg md:text-xl font-light tracking-wide mt-2 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                    ישיבת צביה אלישיב לוד
-                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                    <span className="text-amber-500 font-semibold italic">מגדילים תורה ומאדירים</span>
-                </p>
-             </div>
+        <header className="relative mb-10 rounded-3xl overflow-hidden shadow-2xl border border-white/10">
+          {/* Background Image */}
+          <div className="absolute inset-0 z-0">
+            {!yeshivaImageError ? (
+              <img 
+                src="/yeshiva.jpg" 
+                alt="ישיבת צביה אלישיב לוד" 
+                className="w-full h-full object-cover"
+                onError={() => setYeshivaImageError(true)}
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-slate-900 via-amber-900/30 to-slate-900"></div>
+            )}
+            {/* Dark overlay for better text visibility */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-black/80"></div>
+            {/* Decorative overlay */}
+            <div className="absolute inset-0 bg-gradient-to-r from-amber-900/20 via-transparent to-amber-900/20"></div>
           </div>
           
-          <div className="flex flex-wrap justify-center gap-4">
-             <button onClick={loadData} className="bg-slate-800/80 hover:bg-slate-700 text-slate-400 p-4 rounded-2xl hover:text-white transition-all border border-slate-700 hover:border-slate-500 shadow-lg" title="רענן נתונים">
-                 <RefreshCw className={`w-6 h-6 ${isLoading ? 'animate-spin' : ''}`} />
-             </button>
-             <button 
-                onClick={() => setIsHistoryOpen(true)}
-                className="bg-slate-800/80 hover:bg-slate-700 text-amber-500 border border-slate-600/50 hover:border-amber-500/50 px-6 py-4 rounded-2xl flex items-center gap-3 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
-              >
-                <TrendingUp className="w-5 h-5" />
-                <span className="font-bold">היסטוריית מובילים</span>
-             </button>
-             <button 
-                onClick={() => setIsAdminOpen(true)}
-                className="bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 text-slate-200 border border-slate-600 px-6 py-4 rounded-2xl flex items-center gap-3 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
-             >
-                <Lock className="w-5 h-5" />
-                <span className="font-bold">עדכון ניקוד</span>
-             </button>
+          {/* Header Content */}
+          <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6 p-6 md:p-8 lg:p-10">
+            <div className="flex items-center gap-6 group w-full md:w-auto">
+               <div className="relative flex-shrink-0">
+                  <div className="absolute inset-0 bg-amber-500 blur-lg opacity-30 group-hover:opacity-50 transition-opacity"></div>
+                  <div className={`relative w-40 h-40 md:w-48 md:h-48 rounded-2xl rotate-3 group-hover:rotate-6 transition-transform flex items-center justify-center shadow-2xl shadow-amber-500/30 ring-2 ring-white/20 border-2 border-amber-300/50 overflow-hidden ${logoError ? 'bg-gradient-to-br from-amber-400 to-yellow-600' : 'bg-white'}`}>
+                      {logoError ? (
+                        <BookOpen className="text-slate-900 w-16 h-16 md:w-20 md:h-20" />
+                      ) : (
+                        <img 
+                          src="/logo.png" 
+                          alt="לוגו ישיבת צביה אלישיב לוד" 
+                          className="w-[90%] h-[90%] object-contain"
+                          onError={() => setLogoError(true)}
+                        />
+                      )}
+                  </div>
+               </div>
+               <div className="flex-1">
+                  <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white tracking-tight drop-shadow-2xl mb-2">
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-300 to-amber-400">מבצע הגמרתון</span>
+                  </h1>
+                  <p className="text-slate-200 text-lg md:text-xl font-light tracking-wide flex items-center gap-2 flex-wrap">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 shadow-lg shadow-amber-400/50"></span>
+                      <span className="font-medium">ישיבת צביה אלישיב לוד</span>
+                      <span className="w-2 h-2 rounded-full bg-amber-400 shadow-lg shadow-amber-400/50"></span>
+                      <span className="text-amber-300 font-semibold italic">מגדילים תורה ומאדירים</span>
+                  </p>
+               </div>
+            </div>
+            
+            <div className="flex flex-wrap justify-center gap-4 w-full md:w-auto">
+               <button onClick={loadData} className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white p-4 rounded-2xl hover:text-amber-300 transition-all border border-white/20 hover:border-amber-400/50 shadow-lg" title="רענן נתונים">
+                   <RefreshCw className={`w-6 h-6 ${isLoading ? 'animate-spin' : ''}`} />
+               </button>
+               <button 
+                  onClick={() => setIsHistoryOpen(true)}
+                  className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-amber-300 border border-white/20 hover:border-amber-400/50 px-6 py-4 rounded-2xl flex items-center gap-3 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
+                >
+                  <TrendingUp className="w-5 h-5" />
+                  <span className="font-bold">היסטוריית מובילים</span>
+               </button>
+               <button 
+                  onClick={() => setIsAdminOpen(true)}
+                  className="bg-gradient-to-r from-white/15 to-white/10 hover:from-white/25 hover:to-white/15 backdrop-blur-md text-white border border-white/20 px-6 py-4 rounded-2xl flex items-center gap-3 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
+               >
+                  <Lock className="w-5 h-5" />
+                  <span className="font-bold">עדכון ניקוד</span>
+               </button>
+            </div>
           </div>
         </header>
 
@@ -254,7 +276,7 @@ const App: React.FC = () => {
               </div>
               {/* Search Result Popup */}
               {selectedStudent && (
-                 <div className="absolute top-full mt-4 left-0 right-0 bg-slate-900/95 backdrop-blur-xl border border-amber-500/30 rounded-2xl p-8 shadow-2xl z-20 animate-in slide-in-from-top-4">
+                 <div className="absolute top-full mt-4 left-0 right-0 bg-slate-900/98 backdrop-blur-xl border border-amber-500/30 rounded-2xl p-8 shadow-2xl z-[100] animate-in slide-in-from-top-4">
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-6">
                            <div className="w-16 h-16 bg-amber-500/20 rounded-2xl flex items-center justify-center text-amber-500 border border-amber-500/30">
