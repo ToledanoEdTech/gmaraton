@@ -1,0 +1,353 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  Student, 
+  HistoryEntry 
+} from './types';
+import { 
+  fetchStudentsFromSheet,
+  updateStudentScoreInSheet, 
+  calculateClassSummaries, 
+  getTopStudents,
+  exportToCSV,
+  saveHistory,
+  getStoredHistory
+} from './services/dataManager';
+import { GOOGLE_SCRIPT_URL } from './constants';
+import { ClassCard } from './components/ClassCard';
+import { Leaderboard } from './components/Leaderboard';
+import { AdminModal } from './components/AdminModal';
+import { HistoryModal } from './components/HistoryModal';
+import { ClassDetailModal } from './components/ClassDetailModal';
+import { Search, Lock, TrendingUp, Sparkles, RefreshCw, AlertCircle, BookOpen } from 'lucide-react';
+
+const App: React.FC = () => {
+  const [students, setStudents] = useState<Student[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  
+  // Modals state
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [selectedClassForDetail, setSelectedClassForDetail] = useState<string | null>(null);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  // Load Data function
+  const loadData = async () => {
+    setIsLoading(true);
+    setErrorMsg("");
+    
+    if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("PASTE_YOUR")) {
+        setIsLoading(false);
+        return;
+    }
+
+    try {
+      const data = await fetchStudentsFromSheet();
+      setStudents(data);
+    } catch (e) {
+      setErrorMsg("שגיאה בטעינת הנתונים. אנא בדוק את החיבור לאינטרנט.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Initialize Data
+  useEffect(() => {
+    setHistory(getStoredHistory());
+    loadData();
+    
+    // Optional: Auto-refresh every 30 seconds
+    const interval = setInterval(loadData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Calculate derived states
+  const classSummaries = useMemo(() => calculateClassSummaries(students), [students]);
+  const top10 = useMemo(() => getTopStudents(students, 10), [students]);
+
+  // Handle adding points
+  const handleAddPoints = async (studentId: string, points: number) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    // Optimistic Update (Immediate UI update)
+    const oldStudents = [...students];
+    const oldTop10Ids = getTopStudents(oldStudents, 10).map(s => s.id);
+    
+    // Create optimistic new state
+    const newStudents = students.map(s => 
+        s.id === studentId ? { ...s, score: s.score + points } : s
+    );
+    setStudents(newStudents); // Update UI immediately
+
+    // Send to Google Sheet
+    const success = await updateStudentScoreInSheet(student, points);
+    
+    if (!success) {
+      // Revert if failed
+      alert("שגיאה בעדכון הנתונים בגוגל שיטס. הנתונים לא נשמרו.");
+      setStudents(oldStudents);
+      return;
+    }
+
+    // If success, verify History logic based on the new optimistic state
+    const newTop10Ids = getTopStudents(newStudents, 10).map(s => s.id);
+    const newHistory = [...history];
+    
+    oldTop10Ids.forEach(id => {
+        if (!newTop10Ids.includes(id)) {
+           const dropout = oldStudents.find(s => s.id === id);
+           if (dropout) {
+             newHistory.unshift({
+               timestamp: Date.now(),
+               studentName: dropout.name,
+               reason: 'dropped_out_of_top10',
+               details: `Dropped from rank`
+             });
+           }
+        }
+    });
+
+    saveHistory(newHistory);
+    setHistory(newHistory);
+  };
+
+  // Search Logic
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const q = e.target.value;
+    setSearchQuery(q);
+    if (q.length > 1) {
+      const found = students.find(s => s.name.includes(q));
+      setSelectedStudent(found || null);
+    } else {
+      setSelectedStudent(null);
+    }
+  };
+
+  // Missing Configuration State
+  if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("PASTE_YOUR")) {
+      return (
+          <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white p-4">
+              <div className="max-w-md bg-slate-800 p-8 rounded-xl border border-red-500 text-center">
+                  <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                  <h1 className="text-2xl font-bold mb-2">הגדרת מערכת נדרשת</h1>
+                  <p className="text-slate-300 mb-4">
+                      כדי להפעיל את המערכת, עליך ליצור סקריפט בגוגל שיטס ולהדביק את ה-URL בקובץ <code className="bg-slate-900 px-2 py-1 rounded text-amber-500">constants.ts</code>.
+                  </p>
+                  <p className="text-sm text-slate-400">הוראות מלאות מופיעות בצ'אט.</p>
+              </div>
+          </div>
+      );
+  }
+
+  return (
+    <div className="relative min-h-screen bg-slate-900 flex flex-col font-sans text-white overflow-x-hidden selection:bg-amber-500/30">
+      
+      {/* Dynamic Background */}
+      <div className="fixed inset-0 z-0">
+         {/* Base dark gradient */}
+         <div className="absolute inset-0 bg-gradient-to-b from-slate-900 via-[#0f172a] to-[#0a0f1c]"></div>
+         
+         {/* Animated blobs for atmosphere */}
+         <div className="absolute top-0 left-0 w-96 h-96 bg-purple-900/20 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
+         <div className="absolute top-0 right-0 w-96 h-96 bg-amber-900/20 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
+         <div className="absolute -bottom-32 left-20 w-96 h-96 bg-blue-900/20 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000"></div>
+
+         {/* Texture Overlay */}
+         <div className="absolute inset-0 opacity-[0.03]" style={{backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`}}></div>
+      </div>
+
+      {/* Loading Overlay */}
+      {isLoading && students.length === 0 && (
+          <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-sm text-white">
+              <div className="relative">
+                  <div className="absolute inset-0 rounded-full blur-xl bg-amber-500/30 animate-pulse"></div>
+                  <RefreshCw className="w-16 h-16 animate-spin text-amber-500 relative z-10" />
+              </div>
+              <p className="text-2xl font-bold animate-pulse mt-6 text-amber-100">טוען נתונים מהגמרתון...</p>
+          </div>
+      )}
+
+      {/* Main Content Wrapper */}
+      <div className="relative z-10 flex-1 flex flex-col p-4 md:p-6 lg:p-8 max-w-[1600px] mx-auto w-full">
+        
+        {/* Header */}
+        <header className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6 border-b border-slate-700/50 pb-8 bg-slate-900/40 p-6 rounded-3xl backdrop-blur-md shadow-xl border border-white/5">
+          <div className="flex items-center gap-6 group">
+             <div className="relative">
+                <div className="absolute inset-0 bg-amber-500 blur-lg opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                <div className="relative w-24 h-24 bg-gradient-to-br from-amber-400 to-yellow-600 rounded-2xl rotate-3 group-hover:rotate-6 transition-transform flex items-center justify-center shadow-2xl shadow-amber-500/20 ring-4 ring-slate-900 border border-amber-300/30">
+                    <BookOpen className="text-slate-900 w-12 h-12" />
+                </div>
+             </div>
+             <div>
+                <h1 className="text-4xl md:text-6xl font-black text-white tracking-tight drop-shadow-lg">
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-amber-600">מבצע הגמרתון</span>
+                </h1>
+                <p className="text-slate-400 text-lg md:text-xl font-light tracking-wide mt-2 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                    ישיבת צביה אלישיב לוד
+                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                    <span className="text-amber-500 font-semibold italic">מגדילים תורה ומאדירים</span>
+                </p>
+             </div>
+          </div>
+          
+          <div className="flex flex-wrap justify-center gap-4">
+             <button onClick={loadData} className="bg-slate-800/80 hover:bg-slate-700 text-slate-400 p-4 rounded-2xl hover:text-white transition-all border border-slate-700 hover:border-slate-500 shadow-lg" title="רענן נתונים">
+                 <RefreshCw className={`w-6 h-6 ${isLoading ? 'animate-spin' : ''}`} />
+             </button>
+             <button 
+                onClick={() => setIsHistoryOpen(true)}
+                className="bg-slate-800/80 hover:bg-slate-700 text-amber-500 border border-slate-600/50 hover:border-amber-500/50 px-6 py-4 rounded-2xl flex items-center gap-3 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
+              >
+                <TrendingUp className="w-5 h-5" />
+                <span className="font-bold">היסטוריית מובילים</span>
+             </button>
+             <button 
+                onClick={() => setIsAdminOpen(true)}
+                className="bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 text-slate-200 border border-slate-600 px-6 py-4 rounded-2xl flex items-center gap-3 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
+             >
+                <Lock className="w-5 h-5" />
+                <span className="font-bold">עדכון ניקוד</span>
+             </button>
+          </div>
+        </header>
+
+        {errorMsg && (
+            <div className="bg-red-500/10 border border-red-500/40 text-red-200 p-4 rounded-xl mb-8 text-center flex items-center justify-center gap-2 animate-pulse">
+                <AlertCircle className="w-5 h-5" />
+                {errorMsg}
+            </div>
+        )}
+
+        {/* Dashboard Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          
+          {/* Left Column: Classes and Search (8 cols) - SCROLLABLE */}
+          <div className="lg:col-span-8 space-y-10">
+            
+            {/* Search Bar */}
+            <div className="bg-slate-800/60 backdrop-blur-md p-2 rounded-3xl border border-slate-700/50 flex flex-col relative group focus-within:ring-2 focus-within:ring-amber-500/50 transition-all shadow-xl">
+              <div className="flex items-center gap-4 px-4 py-3">
+                <Search className="text-amber-500 w-8 h-8 opacity-70 group-focus-within:opacity-100 transition-opacity" />
+                <input 
+                  type="text"
+                  placeholder="חפש תלמיד לבדיקת ניקוד אישי..."
+                  className="bg-transparent w-full text-white text-xl placeholder-slate-500 outline-none font-medium"
+                  value={searchQuery}
+                  onChange={handleSearch}
+                />
+              </div>
+              {/* Search Result Popup */}
+              {selectedStudent && (
+                 <div className="absolute top-full mt-4 left-0 right-0 bg-slate-900/95 backdrop-blur-xl border border-amber-500/30 rounded-2xl p-8 shadow-2xl z-20 animate-in slide-in-from-top-4">
+                    <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-6">
+                           <div className="w-16 h-16 bg-amber-500/20 rounded-2xl flex items-center justify-center text-amber-500 border border-amber-500/30">
+                                <Sparkles className="w-8 h-8" />
+                           </div>
+                           <div>
+                               <h3 className="text-3xl font-black text-white mb-1">{selectedStudent.name}</h3>
+                               <p className="text-slate-400 text-xl font-medium">{selectedStudent.grade}</p>
+                           </div>
+                        </div>
+                        <div className="text-right">
+                           <span className="block text-6xl font-black text-amber-500 drop-shadow-lg tracking-tighter">{selectedStudent.score.toLocaleString()}</span>
+                           <span className="text-sm font-bold text-slate-500 uppercase tracking-[0.3em]">נקודות</span>
+                        </div>
+                    </div>
+                 </div>
+              )}
+            </div>
+
+            {/* Class Stats Grid */}
+            <div className="space-y-6">
+                <div className="flex items-center justify-between px-2">
+                    <h2 className="text-3xl font-black text-slate-100 flex items-center gap-3">
+                        <BookOpen className="w-8 h-8 text-amber-500" />
+                        דירוג הכיתות
+                    </h2>
+                    <span className="text-sm font-medium text-slate-500 bg-slate-800/50 px-3 py-1 rounded-full border border-slate-700">לחץ לפירוט מלא</span>
+                </div>
+                
+                {students.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-10 pt-4">
+                    {classSummaries.map((summary, index) => (
+                        <ClassCard 
+                            key={summary.grade} 
+                            data={summary} 
+                            rank={index} 
+                            onClick={() => setSelectedClassForDetail(summary.grade)}
+                        />
+                    ))}
+                    </div>
+                ) : (
+                    <div className="text-center text-slate-500 py-24 border-2 border-slate-800/50 border-dashed rounded-3xl bg-slate-800/10">
+                        <p className="text-xl font-bold text-slate-300">לא נמצאו נתונים להצגה</p>
+                        <p className="text-base mt-2 max-w-md mx-auto opacity-70">
+                            ממתין לנתונים מהגמרתון...
+                        </p>
+                        <button onClick={loadData} className="mt-6 text-amber-500 underline hover:text-amber-400 font-medium">נסה לטעון שוב</button>
+                    </div>
+                )}
+            </div>
+
+            {/* Motivation Banner */}
+            <div className="mt-12 bg-gradient-to-r from-amber-900/40 via-slate-800/60 to-amber-900/40 border border-amber-500/20 rounded-3xl p-10 text-center relative overflow-hidden group shadow-2xl">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50"></div>
+              <div className="absolute -left-10 top-0 opacity-10 rotate-12">
+                  <BookOpen className="w-40 h-40" />
+              </div>
+              <h3 className="text-4xl font-black text-amber-400 mb-4 drop-shadow-md tracking-tight">"כי הם חיינו ואורך ימינו"</h3>
+              <p className="text-slate-200 text-xl max-w-3xl mx-auto leading-relaxed font-light">
+                  כל דקה של לימוד מוסיפה אור לעולם! המשיכו לצבור נקודות, לחזק את הכיתה ולהגדיל תורה בישיבה.
+              </p>
+            </div>
+
+          </div>
+
+          {/* Right Column: Leaderboard (4 cols) - STICKY */}
+          <div className="lg:col-span-4 lg:sticky lg:top-8 h-fit transition-all duration-500">
+             <Leaderboard students={top10} />
+             
+             {/* Small Footer in sidebar */}
+             <div className="mt-6 text-center text-slate-600 text-xs">
+                 <p>© ישיבת צביה אלישיב לוד | תשפ"ה</p>
+             </div>
+          </div>
+
+        </div>
+      </div>
+
+      {/* Modals */}
+      <AdminModal 
+        isOpen={isAdminOpen} 
+        onClose={() => setIsAdminOpen(false)} 
+        students={students}
+        onAddPoints={handleAddPoints}
+        onExport={() => exportToCSV(students)}
+      />
+
+      <HistoryModal
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        history={history}
+      />
+
+      {/* Class Detail Modal */}
+      <ClassDetailModal
+        isOpen={!!selectedClassForDetail}
+        onClose={() => setSelectedClassForDetail(null)}
+        classNameStr={selectedClassForDetail || ""}
+        students={students}
+      />
+
+    </div>
+  );
+};
+
+export default App;
