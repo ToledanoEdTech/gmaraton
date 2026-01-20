@@ -56,8 +56,8 @@ export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPo
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
       <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         
-        <div className="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700 shrink-0">
-          <h2 className="text-xl font-bold flex items-center gap-2 text-white">
+        <div className="bg-slate-800 p-3 md:p-4 flex justify-between items-center border-b border-slate-700 shrink-0">
+          <h2 className="text-lg md:text-xl font-bold flex items-center gap-2 text-white">
             <Lock className="w-5 h-5 text-amber-500" />
             ממשק ניהול
           </h2>
@@ -66,7 +66,7 @@ export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPo
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto">
+        <div className="p-4 md:p-6 overflow-y-auto">
           {!isAuthenticated ? (
             <form onSubmit={handleLogin} className="space-y-6">
               <div className="text-center mb-6">

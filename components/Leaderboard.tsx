@@ -108,7 +108,7 @@ export const Leaderboard: React.FC<Props> = ({ students }) => {
             return (
               <li 
                 key={student.id} 
-                className={`relative flex flex-col p-4 rounded-xl transition-all duration-300 overflow-hidden ${
+                className={`relative flex flex-col p-3 md:p-4 rounded-xl transition-all duration-300 overflow-hidden ${
                   isTop5 
                     ? `${bgColor} ${borderColor} shadow-lg hover:shadow-xl hover:scale-[1.02]` 
                     : 'bg-slate-800/30 hover:bg-slate-800/50'
@@ -174,17 +174,17 @@ export const Leaderboard: React.FC<Props> = ({ students }) => {
                 <div className="flex items-center justify-between">
                   <div className="text-right flex-1 pr-4">
                     {isTop3 ? (
-                      <div className="font-black text-white text-xl md:text-2xl mb-1 drop-shadow-md">{student.name}</div>
+                      <div className="font-black text-white text-lg md:text-xl lg:text-2xl mb-1 drop-shadow-md">{student.name}</div>
                     ) : isTop5 ? (
-                      <div className="font-bold text-white text-lg md:text-xl mb-1">{student.name}</div>
+                      <div className="font-bold text-white text-base md:text-lg lg:text-xl mb-1">{student.name}</div>
                     ) : (
-                      <div className="font-semibold text-white text-base">{student.name}</div>
+                      <div className="font-semibold text-white text-sm md:text-base">{student.name}</div>
                     )}
-                    <div className={`text-xs ${isTop5 ? 'text-slate-300' : 'text-slate-400'} mt-0.5`}>{student.grade}</div>
+                    <div className={`text-xs md:text-xs ${isTop5 ? 'text-slate-300' : 'text-slate-400'} mt-0.5`}>{student.grade}</div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {position === 1 && <Medal className="w-5 h-5 text-yellow-400" />}
-                    <span className={`font-mono font-bold text-amber-500 ${isTop3 ? 'text-2xl' : 'text-xl'}`}>
+                    <span className={`font-mono font-bold text-amber-500 ${isTop3 ? 'text-lg md:text-xl lg:text-2xl' : 'text-base md:text-lg lg:text-xl'}`}>
                       {student.score.toLocaleString()}
                     </span>
                   </div>

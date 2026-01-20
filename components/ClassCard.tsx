@@ -15,7 +15,7 @@ export const ClassCard: React.FC<Props> = ({ data, rank, onClick }) => {
 
   // Base styles
   let containerClasses = "relative w-full rounded-2xl transition-all duration-300 transform hover:-translate-y-2 hover:shadow-2xl overflow-visible";
-  let contentClasses = "relative overflow-hidden rounded-2xl p-6 flex flex-col items-center justify-between h-full border-t border-white/10";
+  let contentClasses = "relative overflow-hidden rounded-2xl p-4 md:p-6 flex flex-col items-center justify-between h-full border-t border-white/10";
   let badgeStyle = "";
   let badgeText = "";
   
@@ -54,12 +54,12 @@ export const ClassCard: React.FC<Props> = ({ data, rank, onClick }) => {
         
         {/* Decorative Background Icon */}
         <div className="absolute -right-6 -top-6 opacity-[0.03] rotate-12 pointer-events-none">
-            <BookOpen className="w-40 h-40 text-white" />
+            <BookOpen className="w-24 h-24 md:w-32 md:h-32 lg:w-40 lg:h-40 text-white" />
         </div>
 
         {/* Header */}
         <div className="mt-4 flex flex-col items-center z-10 w-full space-y-2">
-            <h3 className={`text-2xl font-black ${isFirst ? 'text-amber-400 drop-shadow-sm' : 'text-white'}`}>
+            <h3 className={`text-lg md:text-xl lg:text-2xl font-black ${isFirst ? 'text-amber-400 drop-shadow-sm' : 'text-white'}`}>
                 {data.grade}
             </h3>
             
@@ -70,11 +70,11 @@ export const ClassCard: React.FC<Props> = ({ data, rank, onClick }) => {
         {/* Score */}
         <div className="py-6 flex flex-col items-center justify-center">
             <div className="flex items-baseline gap-1">
-                <span className={`text-5xl font-black tracking-tight ${isFirst ? 'text-white drop-shadow-[0_2px_10px_rgba(245,158,11,0.5)]' : 'text-slate-200'}`}>
+                <span className={`text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-black tracking-tight ${isFirst ? 'text-white drop-shadow-[0_2px_10px_rgba(245,158,11,0.5)]' : 'text-slate-200'}`}>
                     {data.totalScore.toLocaleString()}
                 </span>
             </div>
-            <span className="text-sm font-medium text-slate-400 mt-1 flex items-center gap-1 uppercase tracking-widest">
+            <span className="text-xs md:text-sm font-medium text-slate-400 mt-1 flex items-center gap-1 uppercase tracking-widest">
                 {isFirst && <Sparkles className="w-3 h-3 text-amber-400" />}
                 נקודות זכות
                 {isFirst && <Sparkles className="w-3 h-3 text-amber-400" />}

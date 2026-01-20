@@ -192,7 +192,7 @@ const App: React.FC = () => {
       )}
 
       {/* Main Content Wrapper */}
-      <div className="relative z-10 flex-1 flex flex-col p-4 md:p-6 lg:p-8 max-w-[1600px] mx-auto w-full">
+      <div className="relative z-10 flex-1 flex flex-col p-3 md:p-4 lg:p-6 xl:p-8 max-w-[1600px] mx-auto w-full">
         
         {/* Header */}
         <header className="relative mb-10 rounded-3xl overflow-hidden shadow-2xl border border-white/10">
@@ -215,17 +215,17 @@ const App: React.FC = () => {
           </div>
           
           {/* Header Content */}
-          <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6 p-6 md:p-8 lg:p-10">
+          <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-4 md:gap-6 p-4 md:p-6 lg:p-8">
             <div className="flex items-center gap-6 group w-full md:w-auto">
                <div className="relative flex-shrink-0">
                   <div className="absolute inset-0 bg-amber-500 blur-lg opacity-30 group-hover:opacity-50 transition-opacity"></div>
-                  <div className={`relative w-40 h-40 md:w-48 md:h-48 rounded-2xl rotate-3 group-hover:rotate-6 transition-transform flex items-center justify-center shadow-2xl shadow-amber-500/30 ring-2 ring-white/20 border-2 border-amber-300/50 overflow-hidden ${logoError ? 'bg-gradient-to-br from-amber-400 to-yellow-600' : 'bg-white'}`}>
+                  <div className={`relative w-28 h-28 md:w-40 md:h-40 lg:w-48 lg:h-48 rounded-2xl rotate-3 group-hover:rotate-6 transition-transform flex items-center justify-center shadow-2xl shadow-amber-500/30 ring-2 ring-white/20 border-2 border-amber-300/50 overflow-hidden ${logoError ? 'bg-gradient-to-br from-amber-400 to-yellow-600' : 'bg-white'}`}>
                       {logoError ? (
-                        <BookOpen className="text-slate-900 w-16 h-16 md:w-20 md:h-20" />
+                        <BookOpen className="text-slate-900 w-12 h-12 md:w-16 md:h-16 lg:w-20 lg:h-20" />
                       ) : (
-                        <img 
-                          src="/logo.png" 
-                          alt="לוגו ישיבת צביה אלישיב לוד" 
+                        <img
+                          src="/logo.png"
+                          alt="לוגו ישיבת צביה אלישיב לוד"
                           className="w-[90%] h-[90%] object-contain"
                           onError={() => setLogoError(true)}
                         />
@@ -233,10 +233,10 @@ const App: React.FC = () => {
                   </div>
                </div>
                <div className="flex-1">
-                  <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white tracking-tight drop-shadow-2xl mb-2">
+                  <h1 className="text-2xl md:text-4xl lg:text-5xl font-black text-white tracking-tight drop-shadow-2xl mb-2">
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-300 to-amber-400">מבצע הגמרתון</span>
                   </h1>
-                  <p className="text-slate-200 text-lg md:text-xl font-light tracking-wide flex items-center gap-2 flex-wrap">
+                  <p className="text-slate-200 text-base md:text-lg lg:text-xl font-light tracking-wide flex items-center gap-2 flex-wrap">
                       <span className="w-2 h-2 rounded-full bg-amber-400 shadow-lg shadow-amber-400/50"></span>
                       <span className="font-medium">ישיבת צביה אלישיב לוד</span>
                       <span className="w-2 h-2 rounded-full bg-amber-400 shadow-lg shadow-amber-400/50"></span>
@@ -244,24 +244,24 @@ const App: React.FC = () => {
                   </p>
                </div>
             </div>
-            
-            <div className="flex flex-wrap justify-center gap-4 w-full md:w-auto">
-               <button onClick={loadData} className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white p-4 rounded-2xl hover:text-amber-300 transition-all border border-white/20 hover:border-amber-400/50 shadow-lg" title="רענן נתונים">
-                   <RefreshCw className={`w-6 h-6 ${isLoading ? 'animate-spin' : ''}`} />
+
+            <div className="flex items-center gap-2 md:gap-4 w-full md:w-auto justify-center md:justify-end">
+               <button onClick={loadData} className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white p-3 md:p-4 rounded-2xl hover:text-amber-300 transition-all border border-white/20 hover:border-amber-400/50 shadow-lg" title="רענן נתונים">
+                   <RefreshCw className={`w-5 h-5 md:w-6 md:h-6 ${isLoading ? 'animate-spin' : ''}`} />
                </button>
-               <button 
+               <button
                   onClick={() => setIsHistoryOpen(true)}
-                  className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-amber-300 border border-white/20 hover:border-amber-400/50 px-6 py-4 rounded-2xl flex items-center gap-3 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
+                  className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-amber-300 border border-white/20 hover:border-amber-400/50 px-4 md:px-6 py-3 md:py-4 rounded-2xl flex items-center gap-2 md:gap-3 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
                 >
-                  <TrendingUp className="w-5 h-5" />
-                  <span className="font-bold">היסטוריית מובילים</span>
+                  <TrendingUp className="w-4 h-4 md:w-5 md:h-5" />
+                  <span className="font-bold text-sm md:text-base">היסטוריית מובילים</span>
                </button>
-               <button 
+               <button
                   onClick={() => setIsAdminOpen(true)}
-                  className="bg-gradient-to-r from-white/15 to-white/10 hover:from-white/25 hover:to-white/15 backdrop-blur-md text-white border border-white/20 px-6 py-4 rounded-2xl flex items-center gap-3 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
+                  className="bg-gradient-to-r from-white/15 to-white/10 hover:from-white/25 hover:to-white/15 backdrop-blur-md text-white border border-white/20 px-4 md:px-6 py-3 md:py-4 rounded-2xl flex items-center gap-2 md:gap-3 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
                >
-                  <Lock className="w-5 h-5" />
-                  <span className="font-bold">עדכון ניקוד</span>
+                  <Lock className="w-4 h-4 md:w-5 md:h-5" />
+                  <span className="font-bold text-sm md:text-base">עדכון ניקוד</span>
                </button>
             </div>
           </div>
@@ -285,11 +285,11 @@ const App: React.FC = () => {
               {/* Search Bar */}
               <div className="bg-slate-800/60 backdrop-blur-md p-2 rounded-3xl border border-slate-700/50 flex flex-col relative group focus-within:ring-2 focus-within:ring-amber-500/50 transition-all shadow-xl">
                 <div className="flex items-center gap-4 px-4 py-3">
-                  <Search className="text-amber-500 w-8 h-8 opacity-70 group-focus-within:opacity-100 transition-opacity" />
-                  <input 
+                  <Search className="text-amber-500 w-6 h-6 md:w-8 md:h-8 opacity-70 group-focus-within:opacity-100 transition-opacity" />
+                  <input
                     type="text"
                     placeholder="חפש תלמיד לבדיקת ניקוד אישי..."
-                    className="bg-transparent w-full text-white text-xl placeholder-slate-500 outline-none font-medium"
+                    className="bg-transparent w-full text-white text-base md:text-lg lg:text-xl placeholder-slate-500 outline-none font-medium"
                     value={searchQuery}
                     onChange={handleSearch}
                     onFocus={() => setIsSearchFocused(true)}
@@ -346,16 +346,16 @@ const App: React.FC = () => {
 
             {/* Class Stats Grid */}
             <div className="space-y-6">
-                <div className="flex items-center justify-between px-2">
-                    <h2 className="text-3xl font-black text-slate-100 flex items-center gap-3">
+                <div className="flex items-center justify-between px-1 md:px-2">
+                    <h2 className="text-xl md:text-2xl lg:text-3xl font-black text-slate-100 flex items-center gap-3">
                         <BookOpen className="w-8 h-8 text-amber-500" />
                         דירוג הכיתות
                     </h2>
-                    <span className="text-sm font-medium text-slate-500 bg-slate-800/50 px-3 py-1 rounded-full border border-slate-700">לחץ לפירוט מלא</span>
+                    <span className="text-xs md:text-sm font-medium text-slate-500 bg-slate-800/50 px-3 py-1 rounded-full border border-slate-700">לחץ לפירוט מלא</span>
                 </div>
                 
                 {students.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-10 pt-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-x-4 md:gap-x-6 gap-y-6 md:gap-y-10 pt-4">
                     {classSummaries.map((summary, index) => (
                         <ClassCard 
                             key={summary.grade} 
@@ -377,13 +377,13 @@ const App: React.FC = () => {
             </div>
 
             {/* Motivation Banner */}
-            <div className="mt-12 bg-gradient-to-r from-amber-900/40 via-slate-800/60 to-amber-900/40 border border-amber-500/20 rounded-3xl p-10 text-center relative overflow-hidden group shadow-2xl">
+            <div className="mt-8 md:mt-12 bg-gradient-to-r from-amber-900/40 via-slate-800/60 to-amber-900/40 border border-amber-500/20 rounded-3xl p-6 md:p-8 lg:p-10 text-center relative overflow-hidden group shadow-2xl">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50"></div>
               <div className="absolute -left-10 top-0 opacity-10 rotate-12">
                   <BookOpen className="w-40 h-40" />
               </div>
-              <h3 className="text-4xl font-black text-amber-400 mb-4 drop-shadow-md tracking-tight">"כי הם חיינו ואורך ימינו"</h3>
-              <p className="text-slate-200 text-xl max-w-3xl mx-auto leading-relaxed font-light">
+              <h3 className="text-xl md:text-2xl lg:text-3xl xl:text-4xl font-black text-amber-400 mb-4 drop-shadow-md tracking-tight">"כי הם חיינו ואורך ימינו"</h3>
+              <p className="text-slate-200 text-base md:text-lg lg:text-xl max-w-3xl mx-auto leading-relaxed font-light">
                   כל דקה של לימוד מוסיפה אור לעולם! המשיכו לצבור נקודות, לחזק את הכיתה ולהגדיל תורה בישיבה.
               </p>
             </div>
