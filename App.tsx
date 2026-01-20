@@ -236,10 +236,10 @@ const App: React.FC = () => {
                   <h1 className="text-2xl md:text-4xl lg:text-5xl font-black text-white tracking-tight drop-shadow-2xl mb-2">
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-300 to-amber-400">מבצע הגמרתון</span>
                   </h1>
-                  <p className="text-slate-200 text-base md:text-lg lg:text-xl font-light tracking-wide flex items-center gap-2 flex-wrap">
-                      <span className="w-2 h-2 rounded-full bg-amber-400 shadow-lg shadow-amber-400/50"></span>
+                  <p className="text-slate-200 text-sm md:text-base md:text-lg lg:text-xl font-light tracking-wide flex items-center gap-2 flex-wrap text-center md:text-left">
+                      <span className="hidden md:inline-block w-2 h-2 rounded-full bg-amber-400 shadow-lg shadow-amber-400/50"></span>
                       <span className="font-medium">ישיבת צביה אלישיב לוד</span>
-                      <span className="w-2 h-2 rounded-full bg-amber-400 shadow-lg shadow-amber-400/50"></span>
+                      <span className="hidden md:inline-block w-2 h-2 rounded-full bg-amber-400 shadow-lg shadow-amber-400/50"></span>
                       <span className="text-amber-300 font-semibold italic">מגדילים תורה בשמחה</span>
                   </p>
                </div>
