@@ -265,7 +265,7 @@ export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPo
               </form>
 
               <div className="pt-4 border-t border-slate-700">
-                <button 
+                <button
                   onClick={onExport}
                   className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all"
                 >

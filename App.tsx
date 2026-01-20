@@ -89,7 +89,7 @@ const App: React.FC = () => {
 
     // Send to Google Sheet
     const success = await updateStudentScoreInSheet(student, points);
-    
+
     if (!success) {
       // Revert if failed
       alert("שגיאה בעדכון הנתונים בגוגל שיטס. הנתונים לא נשמרו.");

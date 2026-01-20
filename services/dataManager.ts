@@ -60,26 +60,60 @@ export const updateStudentScoreInSheet = async (student: Student, points: number
   }
 
   try {
+    console.log(`Updating student: "${student.name}" (grade: "${student.grade}") with ${points} points`);
+
     // We use no-cors or text/plain to avoid complex CORS preflight issues with GAS
     // Note: GAS doPost must handle the request payload accordingly.
     const payload = JSON.stringify({
-      name: student.name,
-      grade: student.grade,
+      name: student.name.trim(),
+      grade: student.grade.trim(),
       points: points
     });
+
+    console.log("Sending payload:", payload);
 
     const response = await fetch(GOOGLE_SCRIPT_URL, {
       method: 'POST',
       body: payload,
       headers: {
-        'Content-Type': 'text/plain', 
+        'Content-Type': 'text/plain',
       },
     });
-    
+
+    console.log("Response status:", response.status);
+
+    if (!response.ok) {
+      console.error(`HTTP Error: ${response.status} ${response.statusText}`);
+      return false;
+    }
+
     // With GAS text/plain, we might receive an opaque response or a JSON text.
     // If we get here without error, we assume success or check response if possible.
-    const result = await response.json();
-    return result.result === 'success';
+    const responseText = await response.text();
+    console.log("Raw response text:", responseText);
+
+    try {
+      const result = JSON.parse(responseText);
+      console.log("Parsed response:", result);
+
+      if (result.success === true) {
+        console.log("Update successful:", result.message);
+        return true;
+      } else {
+        console.error("GAS returned error:", result.error);
+        if (result.availableStudents) {
+          console.log("Available students in sheet:", result.availableStudents);
+        }
+        if (result.triedNames) {
+          console.log("Tried name variations:", result.triedNames);
+        }
+        return false;
+      }
+    } catch (parseError) {
+      console.warn("Could not parse response as JSON:", parseError);
+      // If response contains "success" text, consider it successful
+      return responseText.toLowerCase().includes('success');
+    }
   } catch (error) {
     console.error("Failed to update score:", error);
     return false;
@@ -125,10 +159,10 @@ export const getTopStudents = (students: Student[], limit: number = 10): Student
 export const exportToCSV = (students: Student[]) => {
   const headers = ['ID', 'שם התלמיד', 'כיתה', 'ניקוד'];
   const rows = students.map(s => [s.id, s.name, s.grade, s.score]);
-  
+
   let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
   csvContent += headers.join(",") + "\r\n";
-  
+
   rows.forEach(row => {
     csvContent += row.join(",") + "\r\n";
   });
