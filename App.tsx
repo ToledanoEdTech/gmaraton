@@ -222,7 +222,7 @@ const App: React.FC = () => {
                       <span className="w-2 h-2 rounded-full bg-amber-400 shadow-lg shadow-amber-400/50"></span>
                       <span className="font-medium">ישיבת צביה אלישיב לוד</span>
                       <span className="w-2 h-2 rounded-full bg-amber-400 shadow-lg shadow-amber-400/50"></span>
-                      <span className="text-amber-300 font-semibold italic">מגדילים תורה ומאדירים</span>
+                      <span className="text-amber-300 font-semibold italic">מגדילים תורה בשמחה</span>
                   </p>
                </div>
             </div>
