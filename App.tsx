@@ -180,14 +180,14 @@ const App: React.FC = () => {
           <div className="flex items-center gap-6 group">
              <div className="relative">
                 <div className="absolute inset-0 bg-amber-500 blur-lg opacity-20 group-hover:opacity-40 transition-opacity"></div>
-                <div className={`relative w-24 h-24 rounded-2xl rotate-3 group-hover:rotate-6 transition-transform flex items-center justify-center shadow-2xl shadow-amber-500/20 ring-4 ring-slate-900 border border-amber-300/30 overflow-hidden ${logoError ? 'bg-gradient-to-br from-amber-400 to-yellow-600' : 'bg-white'}`}>
+                <div className={`relative w-40 h-40 md:w-48 md:h-48 rounded-2xl rotate-3 group-hover:rotate-6 transition-transform flex items-center justify-center shadow-2xl shadow-amber-500/20 ring-2 ring-slate-900 border border-amber-300/30 overflow-hidden ${logoError ? 'bg-gradient-to-br from-amber-400 to-yellow-600' : 'bg-white'}`}>
                     {logoError ? (
-                      <BookOpen className="text-slate-900 w-12 h-12" />
+                      <BookOpen className="text-slate-900 w-16 h-16 md:w-20 md:h-20" />
                     ) : (
                       <img 
                         src="/logo.png" 
                         alt="לוגו ישיבת צביה אלישיב לוד" 
-                        className="w-full h-full object-contain p-2"
+                        className="w-[90%] h-[90%] object-contain"
                         onError={() => setLogoError(true)}
                       />
                     )}
