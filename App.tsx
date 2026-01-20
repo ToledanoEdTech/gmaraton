@@ -280,24 +280,27 @@ const App: React.FC = () => {
           {/* Left Column: Classes and Search (8 cols) - SCROLLABLE */}
           <div className="lg:col-span-8 space-y-10">
             
-            {/* Search Bar */}
-            <div className="bg-slate-800/60 backdrop-blur-md p-2 rounded-3xl border border-slate-700/50 flex flex-col relative group focus-within:ring-2 focus-within:ring-amber-500/50 transition-all shadow-xl">
-              <div className="flex items-center gap-4 px-4 py-3">
-                <Search className="text-amber-500 w-8 h-8 opacity-70 group-focus-within:opacity-100 transition-opacity" />
-                <input 
-                  type="text"
-                  placeholder="חפש תלמיד לבדיקת ניקוד אישי..."
-                  className="bg-transparent w-full text-white text-xl placeholder-slate-500 outline-none font-medium"
-                  value={searchQuery}
-                  onChange={handleSearch}
-                  onFocus={() => setIsSearchFocused(true)}
-                  onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
-                />
+            {/* Search Bar Container */}
+            <div className="relative">
+              {/* Search Bar */}
+              <div className="bg-slate-800/60 backdrop-blur-md p-2 rounded-3xl border border-slate-700/50 flex flex-col relative group focus-within:ring-2 focus-within:ring-amber-500/50 transition-all shadow-xl">
+                <div className="flex items-center gap-4 px-4 py-3">
+                  <Search className="text-amber-500 w-8 h-8 opacity-70 group-focus-within:opacity-100 transition-opacity" />
+                  <input 
+                    type="text"
+                    placeholder="חפש תלמיד לבדיקת ניקוד אישי..."
+                    className="bg-transparent w-full text-white text-xl placeholder-slate-500 outline-none font-medium"
+                    value={searchQuery}
+                    onChange={handleSearch}
+                    onFocus={() => setIsSearchFocused(true)}
+                    onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+                  />
+                </div>
               </div>
-              
-              {/* Search Results Dropdown */}
+
+              {/* Search Results Dropdown - Fixed position above class rankings */}
               {isSearchFocused && searchQuery.length > 0 && searchResults.length > 0 && (
-                <div className="absolute top-full mt-2 left-0 right-0 bg-slate-900/98 backdrop-blur-xl border border-amber-500/30 rounded-2xl shadow-2xl z-[9999] max-h-96 overflow-y-auto">
+                <div className="absolute top-full mt-2 left-0 right-0 bg-slate-900/98 backdrop-blur-xl border border-amber-500/30 rounded-2xl shadow-2xl z-[10000] max-h-96 overflow-y-auto">
                   <div className="p-2">
                     {searchResults.map((student) => (
                       <button
@@ -319,9 +322,9 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              {/* Selected Student Details */}
+              {/* Selected Student Details - Fixed position above class rankings */}
               {selectedStudent && searchResults.length === 0 && (
-                 <div className="absolute top-full mt-4 left-0 right-0 bg-slate-900/98 backdrop-blur-xl border border-amber-500/30 rounded-2xl p-8 shadow-2xl z-[9999] animate-in slide-in-from-top-4">
+                 <div className="absolute top-full mt-4 left-0 right-0 bg-slate-900/98 backdrop-blur-xl border border-amber-500/30 rounded-2xl p-8 shadow-2xl z-[10000] animate-in slide-in-from-top-4">
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-6">
                            <div className="w-16 h-16 bg-amber-500/20 rounded-2xl flex items-center justify-center text-amber-500 border border-amber-500/30">
