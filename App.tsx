@@ -31,6 +31,8 @@ const App: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [searchResults, setSearchResults] = useState<Student[]>([]);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
   const [logoError, setLogoError] = useState(false);
@@ -121,12 +123,28 @@ const App: React.FC = () => {
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const q = e.target.value;
     setSearchQuery(q);
-    if (q.length > 1) {
-      const found = students.find(s => s.name.includes(q));
-      setSelectedStudent(found || null);
+    if (q.length > 0) {
+      const filtered = students.filter(s => 
+        s.name.toLowerCase().includes(q.toLowerCase()) || 
+        s.grade.toLowerCase().includes(q.toLowerCase())
+      ).slice(0, 10); // Limit to 10 results
+      setSearchResults(filtered);
+      if (filtered.length === 1 && filtered[0].name.toLowerCase() === q.toLowerCase()) {
+        setSelectedStudent(filtered[0]);
+      } else {
+        setSelectedStudent(null);
+      }
     } else {
+      setSearchResults([]);
       setSelectedStudent(null);
     }
+  };
+
+  const handleSelectStudent = (student: Student) => {
+    setSelectedStudent(student);
+    setSearchQuery(student.name);
+    setSearchResults([]);
+    setIsSearchFocused(false);
   };
 
   // Missing Configuration State
@@ -272,11 +290,38 @@ const App: React.FC = () => {
                   className="bg-transparent w-full text-white text-xl placeholder-slate-500 outline-none font-medium"
                   value={searchQuery}
                   onChange={handleSearch}
+                  onFocus={() => setIsSearchFocused(true)}
+                  onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
                 />
               </div>
-              {/* Search Result Popup */}
-              {selectedStudent && (
-                 <div className="absolute top-full mt-4 left-0 right-0 bg-slate-900/98 backdrop-blur-xl border border-amber-500/30 rounded-2xl p-8 shadow-2xl z-[100] animate-in slide-in-from-top-4">
+              
+              {/* Search Results Dropdown */}
+              {isSearchFocused && searchQuery.length > 0 && searchResults.length > 0 && (
+                <div className="absolute top-full mt-2 left-0 right-0 bg-slate-900/98 backdrop-blur-xl border border-amber-500/30 rounded-2xl shadow-2xl z-[9999] max-h-96 overflow-y-auto">
+                  <div className="p-2">
+                    {searchResults.map((student) => (
+                      <button
+                        key={student.id}
+                        onClick={() => handleSelectStudent(student)}
+                        className="w-full text-right p-4 hover:bg-slate-800/80 rounded-xl transition-all flex items-center justify-between group/item"
+                      >
+                        <div className="text-left">
+                          <span className="text-2xl font-black text-amber-500">{student.score.toLocaleString()}</span>
+                          <span className="text-xs text-slate-500 block">נקודות</span>
+                        </div>
+                        <div className="flex-1 text-right mr-4">
+                          <h3 className="text-xl font-bold text-white group-hover/item:text-amber-400 transition-colors">{student.name}</h3>
+                          <p className="text-slate-400 text-base">{student.grade}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Selected Student Details */}
+              {selectedStudent && searchResults.length === 0 && (
+                 <div className="absolute top-full mt-4 left-0 right-0 bg-slate-900/98 backdrop-blur-xl border border-amber-500/30 rounded-2xl p-8 shadow-2xl z-[9999] animate-in slide-in-from-top-4">
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-6">
                            <div className="w-16 h-16 bg-amber-500/20 rounded-2xl flex items-center justify-center text-amber-500 border border-amber-500/30">
@@ -348,7 +393,8 @@ const App: React.FC = () => {
              
              {/* Small Footer in sidebar */}
              <div className="mt-6 text-center text-slate-600 text-xs">
-                 <p>© ישיבת צביה אלישיב לוד | תשפ"ה</p>
+                 <p>© ישיבת צביה אלישיב לוד | תשפ"ו</p>
+                 <p className="mt-1">נוצר ע"י יוסף טולידנו</p>
              </div>
           </div>
 
