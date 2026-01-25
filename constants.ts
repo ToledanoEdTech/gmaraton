@@ -1,7 +1,7 @@
 import { Student } from './types';
 
 // Password for admin actions
-export const ADMIN_PASSWORD = "1234";
+export const ADMIN_PASSWORD = "zviagmara123";
 
 // ---------------------------------------------------------
 // Google Apps Script Web App URL

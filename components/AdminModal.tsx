@@ -34,6 +34,8 @@ export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPo
         setIsSearchFocused(false);
         setSuccessMessage("");
         setIsSubmitting(false);
+        setIsAuthenticated(false);
+        setPasswordInput("");
     }
   }, [isOpen]);
 
