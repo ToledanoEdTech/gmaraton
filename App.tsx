@@ -119,6 +119,59 @@ const App: React.FC = () => {
     setHistory(newHistory);
   };
 
+  // Handle adding points to multiple students
+  const handleAddPointsToMultiple = async (studentIds: string[], points: number) => {
+    if (studentIds.length === 0) return;
+
+    // Optimistic Update (Immediate UI update)
+    const oldStudents = [...students];
+    const oldTop10Ids = getTopStudents(oldStudents, 10).map(s => s.id);
+    
+    // Create optimistic new state
+    const newStudents = students.map(s => 
+        studentIds.includes(s.id) ? { ...s, score: s.score + points } : s
+    );
+    setStudents(newStudents); // Update UI immediately
+
+    // Send to Google Sheet for each student
+    const updatePromises = studentIds.map(async (studentId) => {
+      const student = oldStudents.find(s => s.id === studentId);
+      if (!student) return false;
+      return await updateStudentScoreInSheet(student, points);
+    });
+
+    const results = await Promise.all(updatePromises);
+    const allSuccess = results.every(r => r === true);
+
+    if (!allSuccess) {
+      // Revert if any failed
+      alert("שגיאה בעדכון הנתונים בגוגל שיטס. חלק מהעדכונים לא נשמרו.");
+      setStudents(oldStudents);
+      return;
+    }
+
+    // If success, verify History logic based on the new optimistic state
+    const newTop10Ids = getTopStudents(newStudents, 10).map(s => s.id);
+    const newHistory = [...history];
+    
+    oldTop10Ids.forEach(id => {
+        if (!newTop10Ids.includes(id)) {
+           const dropout = oldStudents.find(s => s.id === id);
+           if (dropout) {
+             newHistory.unshift({
+               timestamp: Date.now(),
+               studentName: dropout.name,
+               reason: 'dropped_out_of_top10',
+               details: `Dropped from rank`
+             });
+           }
+        }
+    });
+
+    saveHistory(newHistory);
+    setHistory(newHistory);
+  };
+
   // Search Logic
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const q = e.target.value;
@@ -410,6 +463,7 @@ const App: React.FC = () => {
         onClose={() => setIsAdminOpen(false)} 
         students={students}
         onAddPoints={handleAddPoints}
+        onAddPointsToMultiple={handleAddPointsToMultiple}
         onExport={() => exportToCSV(students)}
       />
 

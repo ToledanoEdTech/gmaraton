@@ -1,17 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Student } from '../types';
 import { ADMIN_PASSWORD } from '../constants';
-import { X, Check, Lock, Save, AlertTriangle, Search, Sparkles } from 'lucide-react';
+import { X, Check, Lock, Save, AlertTriangle, Search, Sparkles, Users, CheckSquare, Square } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   students: Student[];
   onAddPoints: (studentId: string, points: number) => void;
+  onAddPointsToMultiple?: (studentIds: string[], points: number) => Promise<void>;
   onExport: () => void;
 }
 
-export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPoints, onExport }) => {
+export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPoints, onAddPointsToMultiple, onExport }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState("");
@@ -22,6 +23,23 @@ export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPo
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [successMessage, setSuccessMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // New state for class-based multi-select
+  const [selectedClass, setSelectedClass] = useState<string>("");
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'single' | 'class'>('class'); // Default to class mode
+
+  // Get unique classes
+  const classes = useMemo(() => {
+    const uniqueClasses = Array.from(new Set(students.map(s => s.grade))).sort();
+    return uniqueClasses;
+  }, [students]);
+
+  // Get students from selected class
+  const classStudents = useMemo(() => {
+    if (!selectedClass) return [];
+    return students.filter(s => s.grade === selectedClass).sort((a, b) => a.name.localeCompare(b.name));
+  }, [selectedClass, students]);
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -36,6 +54,9 @@ export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPo
         setIsSubmitting(false);
         setIsAuthenticated(false);
         setPasswordInput("");
+        setSelectedClass("");
+        setSelectedStudentIds(new Set());
+        setViewMode('class');
     }
   }, [isOpen]);
 
@@ -53,11 +74,29 @@ export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPo
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedStudentId && pointsToAdd && typeof pointsToAdd === 'number' && !isSubmitting) {
-      setIsSubmitting(true);
-      setSuccessMessage("");
+    if (!pointsToAdd || typeof pointsToAdd !== 'number' || isSubmitting) return;
 
-      try {
+    setIsSubmitting(true);
+    setSuccessMessage("");
+
+    try {
+      if (viewMode === 'class' && selectedStudentIds.size > 0) {
+        // Batch update for multiple students
+        if (onAddPointsToMultiple) {
+          await onAddPointsToMultiple(Array.from(selectedStudentIds), pointsToAdd);
+          setSuccessMessage(`✓ ${pointsToAdd} נקודות נוספו ל${selectedStudentIds.size} תלמידים`);
+        } else {
+          // Fallback: update one by one
+          const ids = Array.from(selectedStudentIds);
+          for (const id of ids) {
+            await onAddPoints(id, pointsToAdd);
+          }
+          setSuccessMessage(`✓ ${pointsToAdd} נקודות נוספו ל${ids.length} תלמידים`);
+        }
+        setSelectedStudentIds(new Set());
+        setPointsToAdd('');
+      } else if (viewMode === 'single' && selectedStudentId) {
+        // Single student update
         await onAddPoints(selectedStudentId, pointsToAdd);
         const student = students.find(s => s.id === selectedStudentId);
         setSuccessMessage(`✓ ${pointsToAdd} נקודות נוספו ל${student?.name || 'התלמיד'}`);
@@ -66,14 +105,73 @@ export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPo
         setSelectedStudent(null);
         setSearchQuery("");
         setSearchResults([]);
-
-        // Clear success message after 3 seconds
-        setTimeout(() => setSuccessMessage(""), 3000);
-      } catch (error) {
-        alert("שגיאה בעדכון הניקוד. אנא נסה שוב.");
-      } finally {
-        setIsSubmitting(false);
       }
+
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+      alert("שגיאה בעדכון הניקוד. אנא נסה שוב.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleQuickPoints = async (points: number) => {
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    setSuccessMessage("");
+
+    try {
+      if (viewMode === 'class' && selectedStudentIds.size > 0) {
+        // Batch update for multiple students
+        if (onAddPointsToMultiple) {
+          await onAddPointsToMultiple(Array.from(selectedStudentIds), points);
+          setSuccessMessage(`✓ ${points} נקודות נוספו ל${selectedStudentIds.size} תלמידים`);
+        } else {
+          // Fallback: update one by one
+          const ids = Array.from(selectedStudentIds);
+          for (const id of ids) {
+            await onAddPoints(id, points);
+          }
+          setSuccessMessage(`✓ ${points} נקודות נוספו ל${ids.length} תלמידים`);
+        }
+        setSelectedStudentIds(new Set());
+      } else if (viewMode === 'single' && selectedStudentId) {
+        // Single student update
+        await onAddPoints(selectedStudentId, points);
+        const student = students.find(s => s.id === selectedStudentId);
+        setSuccessMessage(`✓ ${points} נקודות נוספו ל${student?.name || 'התלמיד'}`);
+        setSelectedStudentId("");
+        setSelectedStudent(null);
+        setSearchQuery("");
+        setSearchResults([]);
+      }
+
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+      alert("שגיאה בעדכון הניקוד. אנא נסה שוב.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleStudent = (studentId: string) => {
+    const newSet = new Set(selectedStudentIds);
+    if (newSet.has(studentId)) {
+      newSet.delete(studentId);
+    } else {
+      newSet.add(studentId);
+    }
+    setSelectedStudentIds(newSet);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedStudentIds.size === classStudents.length) {
+      setSelectedStudentIds(new Set());
+    } else {
+      setSelectedStudentIds(new Set(classStudents.map(s => s.id)));
     }
   };
 
@@ -164,9 +262,168 @@ export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPo
                 </div>
               )}
 
+              {/* View Mode Toggle */}
+              <div className="flex gap-2 bg-slate-800/50 p-1 rounded-lg border border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('class')}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+                    viewMode === 'class'
+                      ? 'bg-amber-600 text-white shadow-lg'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Users className="w-4 h-4 inline-block mr-2" />
+                  עדכון לפי כיתה
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('single')}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+                    viewMode === 'single'
+                      ? 'bg-amber-600 text-white shadow-lg'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Search className="w-4 h-4 inline-block mr-2" />
+                  עדכון תלמיד בודד
+                </button>
+              </div>
+
               {/* Add Points Form */}
-              <form onSubmit={handleSubmit} className="space-y-4">
-                 <div className="space-y-2">
+              {viewMode === 'class' ? (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  {/* Class Selection */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-300">בחר כיתה</label>
+                    <select
+                      value={selectedClass}
+                      onChange={(e) => {
+                        setSelectedClass(e.target.value);
+                        setSelectedStudentIds(new Set());
+                      }}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                    >
+                      <option value="">-- בחר כיתה --</option>
+                      {classes.map((cls) => (
+                        <option key={cls} value={cls}>
+                          {cls}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Students List with Checkboxes */}
+                  {selectedClass && classStudents.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-sm font-medium text-slate-300">בחר תלמידים</label>
+                        <button
+                          type="button"
+                          onClick={handleSelectAll}
+                          className="text-xs text-amber-500 hover:text-amber-400 font-medium"
+                        >
+                          {selectedStudentIds.size === classStudents.length ? 'בטל בחירה' : 'בחר הכל'}
+                        </button>
+                      </div>
+                      <div className="bg-slate-950 border border-slate-700 rounded-lg max-h-64 overflow-y-auto">
+                        <div className="p-2 space-y-1">
+                          {classStudents.map((student) => {
+                            const isSelected = selectedStudentIds.has(student.id);
+                            return (
+                              <button
+                                key={student.id}
+                                type="button"
+                                onClick={() => handleToggleStudent(student.id)}
+                                className={`w-full text-right p-3 rounded-lg transition-all flex items-center justify-between group ${
+                                  isSelected
+                                    ? 'bg-amber-500/20 border border-amber-500/50'
+                                    : 'hover:bg-slate-800 border border-transparent'
+                                }`}
+                              >
+                                <div className="text-left flex items-center gap-3">
+                                  {isSelected ? (
+                                    <CheckSquare className="w-5 h-5 text-amber-500" />
+                                  ) : (
+                                    <Square className="w-5 h-5 text-slate-500" />
+                                  )}
+                                  <div>
+                                    <span className="text-lg font-bold text-amber-500">{student.score.toLocaleString()}</span>
+                                    <span className="text-xs text-slate-500 block">נקודות</span>
+                                  </div>
+                                </div>
+                                <div className="flex-1 text-right mr-4">
+                                  <h3 className={`text-base font-bold transition-colors ${
+                                    isSelected ? 'text-amber-300' : 'text-white group-hover:text-amber-400'
+                                  }`}>
+                                    {student.name}
+                                  </h3>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      {selectedStudentIds.size > 0 && (
+                        <p className="text-sm text-amber-400 text-center">
+                          נבחרו {selectedStudentIds.size} תלמידים
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Quick Points Buttons */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-300">לחצנים מהירים</label>
+                    <div className="grid grid-cols-5 gap-2">
+                      {[10, 20, 30, 50, 100].map((points) => (
+                        <button
+                          key={points}
+                          type="button"
+                          onClick={() => handleQuickPoints(points)}
+                          disabled={selectedStudentIds.size === 0 || isSubmitting}
+                          className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2 px-3 rounded-lg transition-all shadow-lg shadow-amber-900/20 text-sm"
+                        >
+                          {points}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Custom Points Input */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-300">או הזן מספר נקודות</label>
+                    <input 
+                      type="number" 
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-amber-500"
+                      value={pointsToAdd}
+                      onChange={(e) => setPointsToAdd(e.target.value === '' ? '' : Number(e.target.value))}
+                      placeholder="0"
+                      min="1"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={selectedStudentIds.size === 0 || !pointsToAdd || isSubmitting}
+                    className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-green-900/20"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        מעדכן...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-5 h-5" />
+                        עדכן ניקוד ל{selectedStudentIds.size} תלמידים
+                      </>
+                    )}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-2">
                     <label className="block text-sm font-medium text-slate-300">חפש תלמיד</label>
                     <div className="relative">
                       <div className="bg-slate-950 border border-slate-700 rounded-lg p-3 flex items-center gap-3 focus-within:border-amber-500 focus-within:ring-1 focus-within:ring-amber-500 transition-all">
@@ -207,64 +464,84 @@ export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPo
                         </div>
                       )}
                     </div>
-                 </div>
+                  </div>
 
-                 {/* Selected Student Display */}
-                 {selectedStudent ? (
-                   <div className="bg-slate-800/50 border border-amber-500/30 rounded-lg p-4">
-                     <div className="flex justify-between items-center">
-                       <div className="flex items-center gap-4">
-                         <div className="w-12 h-12 bg-amber-500/20 rounded-lg flex items-center justify-center text-amber-500 border border-amber-500/30">
-                           <Sparkles className="w-6 h-6" />
-                         </div>
-                         <div>
-                           <h3 className="text-xl font-bold text-white">{selectedStudent.name}</h3>
-                           <p className="text-slate-400 text-sm">{selectedStudent.grade}</p>
-                         </div>
-                       </div>
-                       <div className="text-right">
-                         <span className="block text-3xl font-black text-amber-500">{selectedStudent.score.toLocaleString()}</span>
-                         <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">נקודות נוכחיות</span>
-                       </div>
-                     </div>
-                   </div>
-                 ) : searchQuery.length > 0 && searchResults.length === 0 ? (
-                   <div className="bg-slate-800/50 border border-slate-600 rounded-lg p-4 text-center">
-                     <p className="text-slate-400">לא נמצאו תלמידים התואמים לחיפוש</p>
-                   </div>
-                 ) : null}
+                  {/* Selected Student Display */}
+                  {selectedStudent ? (
+                    <div className="bg-slate-800/50 border border-amber-500/30 rounded-lg p-4">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-amber-500/20 rounded-lg flex items-center justify-center text-amber-500 border border-amber-500/30">
+                            <Sparkles className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-bold text-white">{selectedStudent.name}</h3>
+                            <p className="text-slate-400 text-sm">{selectedStudent.grade}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="block text-3xl font-black text-amber-500">{selectedStudent.score.toLocaleString()}</span>
+                          <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">נקודות נוכחיות</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : searchQuery.length > 0 && searchResults.length === 0 ? (
+                    <div className="bg-slate-800/50 border border-slate-600 rounded-lg p-4 text-center">
+                      <p className="text-slate-400">לא נמצאו תלמידים התואמים לחיפוש</p>
+                    </div>
+                  ) : null}
 
-                 <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-300">נקודות להוספה</label>
+                  {/* Quick Points Buttons */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-300">לחצנים מהירים</label>
+                    <div className="grid grid-cols-5 gap-2">
+                      {[10, 20, 30, 50, 100].map((points) => (
+                        <button
+                          key={points}
+                          type="button"
+                          onClick={() => handleQuickPoints(points)}
+                          disabled={!selectedStudentId || isSubmitting}
+                          className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2 px-3 rounded-lg transition-all shadow-lg shadow-amber-900/20 text-sm"
+                        >
+                          {points}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Custom Points Input */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-300">או הזן מספר נקודות</label>
                     <input 
                       type="number" 
                       className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-amber-500"
                       value={pointsToAdd}
-                      onChange={(e) => setPointsToAdd(Number(e.target.value))}
+                      onChange={(e) => setPointsToAdd(e.target.value === '' ? '' : Number(e.target.value))}
                       placeholder="0"
                       required
                       min="1"
                     />
-                 </div>
+                  </div>
 
-                 <button
-                   type="submit"
-                   disabled={!selectedStudentId || isSubmitting}
-                   className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-green-900/20"
-                 >
-                   {isSubmitting ? (
-                     <>
-                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                       מעדכן...
-                     </>
-                   ) : (
-                     <>
-                       <Check className="w-5 h-5" />
-                       עדכן ניקוד
-                     </>
-                   )}
-                 </button>
-              </form>
+                  <button
+                    type="submit"
+                    disabled={!selectedStudentId || isSubmitting}
+                    className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-green-900/20"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        מעדכן...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-5 h-5" />
+                        עדכן ניקוד
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
 
               <div className="pt-4 border-t border-slate-700">
                 <button
