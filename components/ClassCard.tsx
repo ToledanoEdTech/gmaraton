@@ -79,6 +79,13 @@ export const ClassCard: React.FC<Props> = ({ data, rank, onClick }) => {
                 נקודות זכות
                 {isFirst && <Sparkles className="w-3 h-3 text-amber-400" />}
             </span>
+            {data.classBonus && data.classBonus > 0 && (
+                <div className="mt-2 px-3 py-1 bg-amber-500/20 border border-amber-500/30 rounded-full">
+                    <span className="text-xs font-bold text-amber-400">
+                        +{data.classBonus.toLocaleString()} בונוס כיתתי
+                    </span>
+                </div>
+            )}
         </div>
 
         {/* Footer info */}

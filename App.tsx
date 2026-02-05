@@ -465,6 +465,7 @@ const App: React.FC = () => {
         onAddPoints={handleAddPoints}
         onAddPointsToMultiple={handleAddPointsToMultiple}
         onExport={() => exportToCSV(students)}
+        onClassBonusUpdated={loadData}
       />
 
       <HistoryModal

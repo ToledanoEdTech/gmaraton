@@ -6,6 +6,9 @@ const HISTORY_KEY = 'gemarathon_history_v1';
 // We no longer store students in localStorage as primary source.
 // We only use localStorage for History.
 
+// Store class bonuses separately
+let classBonusesCache: Record<string, number> = {};
+
 export const fetchStudentsFromSheet = async (): Promise<Student[]> => {
   if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("PASTE_YOUR")) {
     console.warn("Google Script URL is not configured.");
@@ -20,37 +23,52 @@ export const fetchStudentsFromSheet = async (): Promise<Student[]> => {
     const data = await response.json();
     console.log("Raw data from sheet:", data); // Debug log
     
+    // Handle both old format (array) and new format (object with students and classBonuses)
+    let studentsArray: any[] = [];
     if (Array.isArray(data)) {
-      // Relaxed filtering:
-      // 1. We map first to handle data cleaning
-      // 2. We allow students with 0 score or invalid score (defaulting to 0) to ensure names appear
-      return data
-        .map((s: any) => {
-           // Must have a name
-           if (!s.name || s.name.toString().trim() === '') return null;
-           
-           // safe score parsing
-           let parsedScore = Number(s.score);
-           if (isNaN(parsedScore)) {
-              console.warn(`Invalid score for student ${s.name}: ${s.score}. Defaulting to 0.`);
-              parsedScore = 0;
-           }
-
-           return {
-              id: s.id || `temp_${Math.random().toString(36).substr(2, 9)}`, // Ensure ID exists
-              name: s.name.toString().trim(),
-              grade: s.grade || 'Unknown',
-              score: parsedScore
-           };
-        })
-        .filter((s: any) => s !== null) as Student[];
+      // Old format - backward compatibility
+      studentsArray = data;
+      classBonusesCache = {};
+    } else if (data.students && Array.isArray(data.students)) {
+      // New format
+      studentsArray = data.students;
+      classBonusesCache = data.classBonuses || {};
+      console.log("Class bonuses loaded:", classBonusesCache);
+    } else {
+      return [];
     }
     
-    return [];
+    // Relaxed filtering:
+    // 1. We map first to handle data cleaning
+    // 2. We allow students with 0 score or invalid score (defaulting to 0) to ensure names appear
+    return studentsArray
+      .map((s: any) => {
+         // Must have a name
+         if (!s.name || s.name.toString().trim() === '') return null;
+         
+         // safe score parsing
+         let parsedScore = Number(s.score);
+         if (isNaN(parsedScore)) {
+            console.warn(`Invalid score for student ${s.name}: ${s.score}. Defaulting to 0.`);
+            parsedScore = 0;
+         }
+
+         return {
+            id: s.id || `temp_${Math.random().toString(36).substr(2, 9)}`, // Ensure ID exists
+            name: s.name.toString().trim(),
+            grade: s.grade || 'Unknown',
+            score: parsedScore
+         };
+      })
+      .filter((s: any) => s !== null) as Student[];
   } catch (error) {
     console.error("Failed to fetch students:", error);
     return [];
   }
+};
+
+export const getClassBonuses = (): Record<string, number> => {
+  return classBonusesCache;
 };
 
 export const updateStudentScoreInSheet = async (student: Student, points: number): Promise<boolean> => {
@@ -145,15 +163,94 @@ export const calculateClassSummaries = (students: Student[]): ClassSummary[] => 
     countMap.set(s.grade, currentCount + 1);
   });
 
-  return Array.from(grades).map(grade => ({
-    grade,
-    totalScore: map.get(grade) || 0,
-    studentCount: countMap.get(grade) || 0
-  })).sort((a, b) => b.totalScore - a.totalScore);
+  // Get class bonuses from cache
+  const bonuses = getClassBonuses();
+
+  return Array.from(grades).map(grade => {
+    const studentScores = map.get(grade) || 0;
+    const classBonus = bonuses[grade] || 0;
+    const totalScore = studentScores + classBonus;
+    
+    return {
+      grade,
+      totalScore: totalScore,
+      studentCount: countMap.get(grade) || 0,
+      classBonus: classBonus > 0 ? classBonus : undefined
+    };
+  }).sort((a, b) => b.totalScore - a.totalScore);
 };
 
 export const getTopStudents = (students: Student[], limit: number = 10): Student[] => {
   return [...students].sort((a, b) => b.score - a.score).slice(0, limit);
+};
+
+export const updateClassBonusInSheet = async (grade: string, bonus: number): Promise<boolean> => {
+  if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("PASTE_YOUR")) {
+    alert("Please configure the Google Apps Script URL in constants.ts");
+    return false;
+  }
+
+  try {
+    console.log(`[Class Bonus] Updating class bonus for grade: "${grade}" with bonus: ${bonus}`);
+
+    const payload = JSON.stringify({
+      type: 'classBonus',
+      grade: grade.trim(),
+      bonus: bonus
+    });
+
+    console.log("[Class Bonus] Sending payload:", payload);
+
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      body: payload,
+      headers: {
+        'Content-Type': 'text/plain',
+      },
+    });
+
+    console.log("[Class Bonus] Response status:", response.status);
+    console.log("[Class Bonus] Response ok:", response.ok);
+
+    if (!response.ok) {
+      console.error(`[Class Bonus] HTTP Error: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      console.error("[Class Bonus] Error response:", errorText);
+      return false;
+    }
+
+    const responseText = await response.text();
+    console.log("[Class Bonus] Raw response text:", responseText);
+
+    try {
+      const result = JSON.parse(responseText);
+      console.log("[Class Bonus] Parsed response:", result);
+
+      if (result.success === true) {
+        console.log("[Class Bonus] Update successful:", result.message);
+        // Update cache
+        classBonusesCache[grade] = bonus;
+        console.log("[Class Bonus] Cache updated:", classBonusesCache);
+        return true;
+      } else {
+        console.error("[Class Bonus] GAS returned error:", result.error);
+        alert(`שגיאה בעדכון הבונוס: ${result.error || 'שגיאה לא ידועה'}`);
+        return false;
+      }
+    } catch (parseError) {
+      console.warn("[Class Bonus] Could not parse response as JSON:", parseError);
+      console.warn("[Class Bonus] Response text was:", responseText);
+      const isSuccess = responseText.toLowerCase().includes('success') || responseText.toLowerCase().includes('הצלחה');
+      if (!isSuccess) {
+        alert(`שגיאה בעדכון הבונוס. תגובה מהשרת: ${responseText.substring(0, 100)}`);
+      }
+      return isSuccess;
+    }
+  } catch (error) {
+    console.error("[Class Bonus] Failed to update class bonus:", error);
+    alert(`שגיאה בעדכון הבונוס: ${error instanceof Error ? error.message : 'שגיאה לא ידועה'}`);
+    return false;
+  }
 };
 
 export const exportToCSV = (students: Student[]) => {

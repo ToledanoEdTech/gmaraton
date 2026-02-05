@@ -12,6 +12,7 @@ export interface ClassSummary {
   grade: ClassGrade;
   totalScore: number;
   studentCount: number;
+  classBonus?: number; // בונוס כיתתי נוסף
 }
 
 export interface HistoryEntry {

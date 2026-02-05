@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Student } from '../types';
 import { ADMIN_PASSWORD } from '../constants';
-import { X, Check, Lock, Save, AlertTriangle, Search, Sparkles, Users, CheckSquare, Square } from 'lucide-react';
+import { updateClassBonusInSheet } from '../services/dataManager';
+import { X, Check, Lock, Save, AlertTriangle, Search, Sparkles, Users, CheckSquare, Square, Award } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -10,9 +11,10 @@ interface Props {
   onAddPoints: (studentId: string, points: number) => void;
   onAddPointsToMultiple?: (studentIds: string[], points: number) => Promise<void>;
   onExport: () => void;
+  onClassBonusUpdated?: () => void; // Callback to refresh data after bonus update
 }
 
-export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPoints, onAddPointsToMultiple, onExport }) => {
+export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPoints, onAddPointsToMultiple, onExport, onClassBonusUpdated }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState("");
@@ -27,7 +29,11 @@ export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPo
   // New state for class-based multi-select
   const [selectedClass, setSelectedClass] = useState<string>("");
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
-  const [viewMode, setViewMode] = useState<'single' | 'class'>('class'); // Default to class mode
+  const [viewMode, setViewMode] = useState<'single' | 'class' | 'bonus'>('class'); // Default to class mode
+  
+  // State for class bonus
+  const [selectedClassForBonus, setSelectedClassForBonus] = useState<string>("");
+  const [classBonusValue, setClassBonusValue] = useState<number | ''>('');
 
   // Get unique classes
   const classes = useMemo(() => {
@@ -57,6 +63,8 @@ export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPo
         setSelectedClass("");
         setSelectedStudentIds(new Set());
         setViewMode('class');
+        setSelectedClassForBonus("");
+        setClassBonusValue('');
     }
   }, [isOpen]);
 
@@ -206,6 +214,45 @@ export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPo
     setIsSearchFocused(false);
   };
 
+  const handleUpdateClassBonus = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedClassForBonus || typeof classBonusValue !== 'number' || isSubmitting) {
+      console.log("[AdminModal] Validation failed:", { selectedClassForBonus, classBonusValue, isSubmitting });
+      return;
+    }
+
+    console.log("[AdminModal] Starting class bonus update:", { grade: selectedClassForBonus, bonus: classBonusValue });
+    setIsSubmitting(true);
+    setSuccessMessage("");
+
+    try {
+      const success = await updateClassBonusInSheet(selectedClassForBonus, classBonusValue);
+      console.log("[AdminModal] Update result:", success);
+      
+      if (success) {
+        setSuccessMessage(`✓ בונוס כיתתי של ${classBonusValue} נקודות עודכן לכיתה ${selectedClassForBonus}`);
+        setClassBonusValue('');
+        setSelectedClassForBonus("");
+        // Refresh data - wait a bit to ensure Google Sheets has updated
+        setTimeout(() => {
+          if (onClassBonusUpdated) {
+            console.log("[AdminModal] Refreshing data...");
+            onClassBonusUpdated();
+          }
+        }, 500);
+      } else {
+        console.error("[AdminModal] Update failed");
+        // Error message is already shown in updateClassBonusInSheet
+      }
+      setTimeout(() => setSuccessMessage(""), 5000);
+    } catch (error) {
+      console.error("[AdminModal] Exception during update:", error);
+      alert(`שגיאה בעדכון הבונוס הכיתתי: ${error instanceof Error ? error.message : 'שגיאה לא ידועה'}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
       <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -287,6 +334,18 @@ export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPo
                 >
                   <Search className="w-4 h-4 inline-block mr-2" />
                   עדכון תלמיד בודד
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('bonus')}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+                    viewMode === 'bonus'
+                      ? 'bg-amber-600 text-white shadow-lg'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Award className="w-4 h-4 inline-block mr-2" />
+                  בונוס כיתתי
                 </button>
               </div>
 
@@ -421,7 +480,7 @@ export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPo
                     )}
                   </button>
                 </form>
-              ) : (
+              ) : viewMode === 'single' ? (
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-slate-300">חפש תלמיד</label>
@@ -537,6 +596,71 @@ export const AdminModal: React.FC<Props> = ({ isOpen, onClose, students, onAddPo
                       <>
                         <Check className="w-5 h-5" />
                         עדכן ניקוד
+                      </>
+                    )}
+                  </button>
+                </form>
+              ) : (
+                // Class Bonus Update Form
+                <form onSubmit={handleUpdateClassBonus} className="space-y-4">
+                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 mb-4">
+                    <div className="flex items-center gap-2 text-amber-300 mb-2">
+                      <Award className="w-5 h-5" />
+                      <span className="font-bold">בונוס כיתתי</span>
+                    </div>
+                    <p className="text-sm text-slate-400">
+                      הוסף בונוס נקודות לכיתה שלמה. הבונוס יתווסף לניקוד הכיתתי הכולל ולא יופיע כניקוד פרטני של תלמידים.
+                    </p>
+                  </div>
+
+                  {/* Class Selection */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-300">בחר כיתה</label>
+                    <select
+                      value={selectedClassForBonus}
+                      onChange={(e) => setSelectedClassForBonus(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                    >
+                      <option value="">-- בחר כיתה --</option>
+                      {classes.map((cls) => (
+                        <option key={cls} value={cls}>
+                          {cls}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Bonus Value Input */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-300">מספר נקודות בונוס</label>
+                    <input 
+                      type="number" 
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-amber-500"
+                      value={classBonusValue}
+                      onChange={(e) => setClassBonusValue(e.target.value === '' ? '' : Number(e.target.value))}
+                      placeholder="0"
+                      required
+                      min="0"
+                    />
+                    <p className="text-xs text-slate-500">
+                      הערה: זה יחליף את הבונוס הקיים. להגדלת הבונוס, הזן את הסכום הכולל הרצוי.
+                    </p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={!selectedClassForBonus || !classBonusValue || isSubmitting}
+                    className="w-full bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-900/20"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        מעדכן...
+                      </>
+                    ) : (
+                      <>
+                        <Award className="w-5 h-5" />
+                        עדכן בונוס כיתתי
                       </>
                     )}
                   </button>
