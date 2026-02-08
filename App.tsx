@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Student, 
   HistoryEntry 
@@ -18,7 +18,8 @@ import { Leaderboard } from './components/Leaderboard';
 import { AdminModal } from './components/AdminModal';
 import { HistoryModal } from './components/HistoryModal';
 import { ClassDetailModal } from './components/ClassDetailModal';
-import { Search, Lock, TrendingUp, Sparkles, RefreshCw, AlertCircle, BookOpen } from 'lucide-react';
+import { ProgressTableModal } from './components/ProgressTableModal';
+import { Search, Lock, TrendingUp, Sparkles, RefreshCw, AlertCircle, BookOpen, LayoutList } from 'lucide-react';
 
 const App: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
@@ -27,6 +28,7 @@ const App: React.FC = () => {
   // Modals state
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isProgressTableOpen, setIsProgressTableOpen] = useState(false);
   const [selectedClassForDetail, setSelectedClassForDetail] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -37,24 +39,32 @@ const App: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState("");
   const [logoError, setLogoError] = useState(false);
   const [yeshivaImageError, setYeshivaImageError] = useState(false);
+  const studentsLengthRef = useRef(0);
+  useEffect(() => { studentsLengthRef.current = students.length; }, [students]);
 
-  // Load Data function
-  const loadData = async () => {
-    setIsLoading(true);
+  const loadData = async (
+    forceRefresh = false,
+    options: { keepCurrentIfEmpty?: boolean; silent?: boolean } = {}
+  ) => {
+    const { keepCurrentIfEmpty = false, silent = false } = options;
+    if (!silent) setIsLoading(true);
     setErrorMsg("");
-    
+
     if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("PASTE_YOUR")) {
-        setIsLoading(false);
-        return;
+      if (!silent) setIsLoading(false);
+      return;
     }
 
     try {
-      const data = await fetchStudentsFromSheet();
+      const data = await fetchStudentsFromSheet(forceRefresh);
+      if (keepCurrentIfEmpty && forceRefresh && data.length === 0 && studentsLengthRef.current > 0) {
+        return;
+      }
       setStudents(data);
     } catch (e) {
-      setErrorMsg("שגיאה בטעינת הנתונים. אנא בדוק את החיבור לאינטרנט.");
+      if (!keepCurrentIfEmpty) setErrorMsg("שגיאה בטעינת הנתונים. אנא בדוק את החיבור לאינטרנט.");
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
@@ -399,12 +409,22 @@ const App: React.FC = () => {
 
             {/* Class Stats Grid */}
             <div className="space-y-6">
-                <div className="flex items-center justify-between px-1 md:px-2">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-1 md:px-2">
                     <h2 className="text-xl md:text-2xl lg:text-3xl font-black text-slate-100 flex items-center gap-3">
                         <BookOpen className="w-8 h-8 text-amber-500" />
                         דירוג הכיתות
                     </h2>
-                    <span className="text-xs md:text-sm font-medium text-slate-500 bg-slate-800/50 px-3 py-1 rounded-full border border-slate-700">לחץ לפירוט מלא</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsProgressTableOpen(true)}
+                        className="text-sm font-medium text-amber-400 hover:text-amber-300 bg-slate-800/80 hover:bg-slate-700 border border-slate-600 rounded-full px-4 py-2 flex items-center gap-2 transition-colors"
+                      >
+                        <LayoutList className="w-4 h-4" />
+                        סוגיות וכרטיסיות
+                      </button>
+                      <span className="text-xs md:text-sm font-medium text-slate-500 bg-slate-800/50 px-3 py-1 rounded-full border border-slate-700">לחץ לפירוט מלא</span>
+                    </div>
                 </div>
                 
                 {students.length > 0 ? (
@@ -465,7 +485,19 @@ const App: React.FC = () => {
         onAddPoints={handleAddPoints}
         onAddPointsToMultiple={handleAddPointsToMultiple}
         onExport={() => exportToCSV(students)}
-        onClassBonusUpdated={loadData}
+        onClassBonusUpdated={async () => { await loadData(true, { keepCurrentIfEmpty: true, silent: true }); }}
+        onSugiotKartisiotMarked={(studentId, type, num) => {
+          setStudents(prev => prev.map(s => {
+            if (s.id !== studentId) return s;
+            if (type === 'sugia') {
+              if ((s.sugiotCompleted || []).includes(num)) return s;
+              return { ...s, sugiotCompleted: [...new Set([...(s.sugiotCompleted || []), num])].sort((a,b) => a - b), score: s.score + 10 };
+            } else {
+              if ((s.kartisiotCompleted || []).includes(num)) return s;
+              return { ...s, kartisiotCompleted: [...new Set([...(s.kartisiotCompleted || []), num])].sort((a,b) => a - b), score: s.score + 10 };
+            }
+          }));
+        }}
       />
 
       <HistoryModal
@@ -474,11 +506,16 @@ const App: React.FC = () => {
         history={history}
       />
 
-      {/* Class Detail Modal */}
       <ClassDetailModal
         isOpen={!!selectedClassForDetail}
         onClose={() => setSelectedClassForDetail(null)}
         classNameStr={selectedClassForDetail || ""}
+        students={students}
+      />
+
+      <ProgressTableModal
+        isOpen={isProgressTableOpen}
+        onClose={() => setIsProgressTableOpen(false)}
         students={students}
       />
 

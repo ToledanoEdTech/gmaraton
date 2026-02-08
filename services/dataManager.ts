@@ -1,22 +1,27 @@
-import { Student, ClassSummary, ClassGrade, HistoryEntry } from '../types';
+import { Student, ClassSummary, ClassGrade, HistoryEntry, ClassProgress } from '../types';
 import { GOOGLE_SCRIPT_URL } from '../constants';
+import { TOTAL_SUGIOT, TOTAL_KARTISIOT } from '../constants';
 
 const HISTORY_KEY = 'gemarathon_history_v1';
 
-// We no longer store students in localStorage as primary source.
-// We only use localStorage for History.
-
-// Store class bonuses separately
 let classBonusesCache: Record<string, number> = {};
+let classProgressCache: Record<string, ClassProgress> = {};
 
-export const fetchStudentsFromSheet = async (): Promise<Student[]> => {
+export const fetchStudentsFromSheet = async (forceRefresh = false): Promise<Student[]> => {
   if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("PASTE_YOUR")) {
     console.warn("Google Script URL is not configured.");
     return [];
   }
 
+  const url = forceRefresh
+    ? GOOGLE_SCRIPT_URL + (GOOGLE_SCRIPT_URL.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now()
+    : GOOGLE_SCRIPT_URL;
+
   try {
-    const response = await fetch(GOOGLE_SCRIPT_URL);
+    const response = await fetch(url, {
+      cache: forceRefresh ? 'no-store' : 'default',
+      headers: forceRefresh ? { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } : undefined
+    });
     if (!response.ok) {
       throw new Error('Network response was not ok');
     }
@@ -26,14 +31,13 @@ export const fetchStudentsFromSheet = async (): Promise<Student[]> => {
     // Handle both old format (array) and new format (object with students and classBonuses)
     let studentsArray: any[] = [];
     if (Array.isArray(data)) {
-      // Old format - backward compatibility
       studentsArray = data;
       classBonusesCache = {};
+      classProgressCache = {};
     } else if (data.students && Array.isArray(data.students)) {
-      // New format
       studentsArray = data.students;
       classBonusesCache = data.classBonuses || {};
-      console.log("Class bonuses loaded:", classBonusesCache);
+      classProgressCache = data.classProgress || {};
     } else {
       return [];
     }
@@ -53,11 +57,27 @@ export const fetchStudentsFromSheet = async (): Promise<Student[]> => {
             parsedScore = 0;
          }
 
+         let sugiotCompleted: number[] = Array.isArray(s.sugiotCompleted)
+           ? (s.sugiotCompleted as number[]).filter((n: number) => n >= 1 && n <= TOTAL_SUGIOT)
+           : [];
+         let kartisiotCompleted: number[] = Array.isArray(s.kartisiotCompleted)
+           ? (s.kartisiotCompleted as number[]).filter((n: number) => n >= 1 && n <= TOTAL_KARTISIOT)
+           : [];
+         if (sugiotCompleted.length === 0 && typeof s.sugiot === 'number' && s.sugiot > 0) {
+           sugiotCompleted = Array.from({ length: Math.min(s.sugiot, TOTAL_SUGIOT) }, (_, i) => i + 1);
+         }
+         if (kartisiotCompleted.length === 0 && typeof s.kartisiot === 'number' && s.kartisiot > 0) {
+           kartisiotCompleted = Array.from({ length: Math.min(s.kartisiot, TOTAL_KARTISIOT) }, (_, i) => i + 1);
+         }
          return {
-            id: s.id || `temp_${Math.random().toString(36).substr(2, 9)}`, // Ensure ID exists
+            id: s.id || `temp_${Math.random().toString(36).substr(2, 9)}`,
             name: s.name.toString().trim(),
             grade: s.grade || 'Unknown',
-            score: parsedScore
+            score: parsedScore,
+            sugiotCompleted: [...new Set(sugiotCompleted)].sort((a, b) => a - b),
+            kartisiotCompleted: [...new Set(kartisiotCompleted)].sort((a, b) => a - b),
+            sugiot: sugiotCompleted.length,
+            kartisiot: kartisiotCompleted.length
          };
       })
       .filter((s: any) => s !== null) as Student[];
@@ -69,6 +89,49 @@ export const fetchStudentsFromSheet = async (): Promise<Student[]> => {
 
 export const getClassBonuses = (): Record<string, number> => {
   return classBonusesCache;
+};
+
+export const getClassProgress = (): Record<string, ClassProgress> => {
+  return classProgressCache;
+};
+
+/** מחשב התקדמות כיתתית מתוך רשימת התלמידים (למקרה שאין מהשרת) */
+export const computeClassProgressFromStudents = (students: Student[]): Record<string, ClassProgress> => {
+  const byGrade = new Map<string, Student[]>();
+  students.forEach(s => {
+    const list = byGrade.get(s.grade) || [];
+    list.push(s);
+    byGrade.set(s.grade, list);
+  });
+  const result: Record<string, ClassProgress> = {};
+  byGrade.forEach((list, grade) => {
+    const n = TOTAL_SUGIOT;
+    const k = TOTAL_KARTISIOT;
+    const sugiotCounts = Array.from({ length: n }, (_, i) =>
+      list.filter(s => (s.sugiotCompleted || []).includes(i + 1)).length
+    );
+    const kartisiotCounts = Array.from({ length: k }, (_, i) =>
+      list.filter(s => (s.kartisiotCompleted || []).includes(i + 1)).length
+    );
+    const studentCount = list.length;
+    let autoBonus = 0;
+    sugiotCounts.forEach(c => { if (studentCount > 0 && c === studentCount) autoBonus += 300; });
+    kartisiotCounts.forEach(c => { if (studentCount > 0 && c === studentCount) autoBonus += 300; });
+    result[grade] = { grade, studentCount, sugiotCounts, kartisiotCounts, autoBonus };
+  });
+  return result;
+};
+
+/** מחזיר התקדמות כיתה — מהשרת או מחושב מתוך התלמידים */
+export const getClassProgressOrComputed = (students: Student[]): Record<string, ClassProgress> => {
+  const fromServer = getClassProgress();
+  const computed = computeClassProgressFromStudents(students);
+  const grades = new Set([...Object.keys(fromServer), ...Object.keys(computed)]);
+  const result: Record<string, ClassProgress> = {};
+  grades.forEach(grade => {
+    result[grade] = fromServer[grade] ?? computed[grade]!;
+  });
+  return result;
 };
 
 export const updateStudentScoreInSheet = async (student: Student, points: number): Promise<boolean> => {
@@ -134,6 +197,45 @@ export const updateStudentScoreInSheet = async (student: Student, points: number
     }
   } catch (error) {
     console.error("Failed to update score:", error);
+    return false;
+  }
+};
+
+export const updateSugiotKartisiotInSheet = async (
+  student: Student,
+  sugiotCompleted: number[],
+  kartisiotCompleted: number[]
+): Promise<boolean> => {
+  if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("PASTE_YOUR")) {
+    alert("Please configure the Google Apps Script URL in constants.ts");
+    return false;
+  }
+  const safeSugiot = (sugiotCompleted || []).filter(n => n >= 1 && n <= TOTAL_SUGIOT);
+  const safeKartisiot = (kartisiotCompleted || []).filter(n => n >= 1 && n <= TOTAL_KARTISIOT);
+
+  try {
+    const payload = JSON.stringify({
+      type: 'updateSugiotKartisiot',
+      name: student.name.trim(),
+      grade: student.grade.trim(),
+      sugiotCompleted: [...new Set(safeSugiot)].sort((a, b) => a - b),
+      kartisiotCompleted: [...new Set(safeKartisiot)].sort((a, b) => a - b)
+    });
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      body: payload,
+      headers: { 'Content-Type': 'text/plain' },
+    });
+    if (!response.ok) return false;
+    const text = await response.text();
+    try {
+      const result = JSON.parse(text);
+      return result.success === true;
+    } catch {
+      return text.toLowerCase().includes('success') || text.toLowerCase().includes('עודכנו');
+    }
+  } catch (error) {
+    console.error("Failed to update sugiot/kartisiot:", error);
     return false;
   }
 };
@@ -254,8 +356,12 @@ export const updateClassBonusInSheet = async (grade: string, bonus: number): Pro
 };
 
 export const exportToCSV = (students: Student[]) => {
-  const headers = ['ID', 'שם התלמיד', 'כיתה', 'ניקוד'];
-  const rows = students.map(s => [s.id, s.name, s.grade, s.score]);
+  const headers = ['ID', 'שם התלמיד', 'כיתה', 'ניקוד', 'סוגיות', 'כרטיסיות'];
+  const rows = students.map(s => [
+    s.id, s.name, s.grade, s.score,
+    (s.sugiotCompleted || []).join(';'),
+    (s.kartisiotCompleted || []).join(';')
+  ]);
 
   let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
   csvContent += headers.join(",") + "\r\n";

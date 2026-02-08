@@ -1,6 +1,10 @@
 // =====================================================
 // גמרתון ישיבת צביה אלישיב לוד - Google Apps Script
 // =====================================================
+var TOTAL_SUGIOT = 35;
+var TOTAL_KARTISIOT = 11;
+var POINTS_PER_ITEM = 10;
+var BONUS_FOR_FULL_CLASS = 300;
 
 function doPost(e) {
   try {
@@ -153,6 +157,77 @@ function doPost(e) {
       });
     }
 
+    // עדכון סוגיות וכרטיסיות לתלמיד — מערכים (אילו סוגיות/כרטיסיות סיים)
+    if (data.type === 'updateSugiotKartisiot') {
+      var uName = data.name ? data.name.toString().trim() : '';
+      var uGrade = data.grade ? data.grade.toString().trim() : '';
+      var uSugiotArr = ensureNumberArray(data.sugiotCompleted, 1, TOTAL_SUGIOT);
+      var uKartisiotArr = ensureNumberArray(data.kartisiotCompleted, 1, TOTAL_KARTISIOT);
+
+      if (!uName || !uGrade) {
+        return createJsonResponse({ success: false, error: "חסרים שם או כיתה" });
+      }
+
+      var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+      if (!spreadsheet) {
+        return createJsonResponse({ success: false, error: "לא ניתן לגשת לגיליון" });
+      }
+      var sheet = findGradeSheet(spreadsheet, uGrade);
+      if (!sheet) {
+        return createJsonResponse({ success: false, error: "לא נמצא גיליון לכיתה: " + uGrade });
+      }
+
+      var allData = sheet.getDataRange().getValues();
+      if (allData.length < 2) {
+        return createJsonResponse({ success: false, error: "אין מספיק נתונים בגיליון" });
+      }
+
+      var nameCol = 1, scoreCol = 2, sugiotCol = 4, kartisiotCol = 5, dataStart = 3;
+      var studentInfo = findStudent(allData, nameCol, scoreCol, dataStart, uName);
+      if (!studentInfo.found) {
+        return createJsonResponse({
+          success: false,
+          error: "תלמיד לא נמצא: " + uName,
+          triedNames: studentInfo.triedNames
+        });
+      }
+
+      var row = studentInfo.rowIndex + 1;
+      // קריאה מפורשת של השורה עם 6 עמודות (A–F) כדי לקבל תמיד E,F גם אם getDataRange לא כלל אותם
+      var currentRow = sheet.getRange(row, 1, row, 6).getValues()[0];
+      var currentC = parseFloat(currentRow[scoreCol]) || 0;
+      var oldSugArr = parseCommaSeparatedNumbers(currentRow[sugiotCol], 1, TOTAL_SUGIOT);
+      var oldKartArr = parseCommaSeparatedNumbers(currentRow[kartisiotCol], 1, TOTAL_KARTISIOT);
+      if (oldSugArr.length === 0 && currentRow[sugiotCol] !== undefined && currentRow[sugiotCol] !== null && currentRow[sugiotCol] !== '') {
+        var singleS = parseInt(currentRow[sugiotCol], 10);
+        if (!isNaN(singleS) && singleS > 0) { for (var si = 1; si <= Math.min(singleS, TOTAL_SUGIOT); si++) oldSugArr.push(si); }
+      }
+      if (oldKartArr.length === 0 && currentRow[kartisiotCol] !== undefined && currentRow[kartisiotCol] !== null && currentRow[kartisiotCol] !== '') {
+        var singleK = parseInt(currentRow[kartisiotCol], 10);
+        if (!isNaN(singleK) && singleK > 0) { for (var ki = 1; ki <= Math.min(singleK, TOTAL_KARTISIOT); ki++) oldKartArr.push(ki); }
+      }
+      var oldPts = (oldSugArr.length + oldKartArr.length) * POINTS_PER_ITEM;
+      var newPts = (uSugiotArr.length + uKartisiotArr.length) * POINTS_PER_ITEM;
+      var newTotal = currentC - oldPts + newPts;
+      if (newTotal < 0) newTotal = 0;
+
+      // כתיבה לעמודה C (ניקוד), E (סוגיות), F (כרטיסיות) — 1-based
+      sheet.getRange(row, 3).setValue(newTotal);
+      sheet.getRange(row, 5).setValue(uSugiotArr.length > 0 ? uSugiotArr.sort(function(a,b){return a-b;}).join(',') : '');
+      sheet.getRange(row, 6).setValue(uKartisiotArr.length > 0 ? uKartisiotArr.sort(function(a,b){return a-b;}).join(',') : '');
+      SpreadsheetApp.flush();
+      Utilities.sleep(500);
+
+      return createJsonResponse({
+        success: true,
+        message: "סוגיות וכרטיסיות עודכנו, ניקוד עודכן בקובץ",
+        student: uName,
+        grade: uGrade,
+        sugiotCompleted: uSugiotArr,
+        kartisiotCompleted: uKartisiotArr
+      });
+    }
+
     // עדכון ניקוד תלמיד (הקוד הקיים)
     var studentName = data.name ? data.name.toString().trim() : '';
     var studentGrade = data.grade ? data.grade.toString().trim() : '';
@@ -274,7 +349,8 @@ function doGet(e) {
 
     var allSheets = spreadsheet.getSheets();
     var allStudents = [];
-    var classBonuses = {}; // אובייקט שמכיל את הבונוסים הכיתתיים: { "כיתה": בונוס }
+    var classBonuses = {};
+    var classProgress = {}; // לכל כיתה: sugiotCounts, kartisiotCounts, studentCount, autoBonus
 
     console.log("Processing " + allSheets.length + " sheets");
 
@@ -283,68 +359,114 @@ function doGet(e) {
       var sheetName = sheet.getName();
       console.log("Processing sheet: " + sheetName);
 
-      var sheetData = sheet.getDataRange().getValues();
+      var lastRow = Math.max(sheet.getLastRow(), 2);
+      var lastCol = Math.max(sheet.getLastColumn(), 6);
+      var sheetData = sheet.getRange(1, 1, lastRow, lastCol).getValues();
 
       if (sheetData.length < 2) {
         console.log("Skipping sheet " + sheetName + " - no data");
         continue;
       }
 
-      // קריאת בונוס כיתתי מעמודה D שורה 2 (אינדקס 1 במערך, עמודה 4 בפועל)
-      var bonusColumnIndex = 3; // עמודה D (אינדקס 3 במערך = עמודה 4 בפועל)
-      var bonusRowIndex = 1; // שורה 2 (אינדקס 1 במערך = שורה 2 בפועל)
+      var bonusColumnIndex = 3;
+      var bonusRowIndex = 1;
       var classBonus = 0;
-      
-      console.log("Reading bonus for sheet: " + sheetName);
-      console.log("Sheet data length: " + sheetData.length);
-      console.log("Looking for bonus at row index " + bonusRowIndex + ", column index " + bonusColumnIndex);
-      
+
       if (sheetData.length > bonusRowIndex) {
-        var row = sheetData[bonusRowIndex];
-        console.log("Row 2 data:", row);
-        if (row && row.length > bonusColumnIndex && row[bonusColumnIndex] !== undefined && row[bonusColumnIndex] !== null && row[bonusColumnIndex] !== "") {
-          var bonusValue = parseFloat(row[bonusColumnIndex]);
-          console.log("Raw bonus value: '" + row[bonusColumnIndex] + "', parsed: " + bonusValue);
+        var bonusRow = sheetData[bonusRowIndex];
+        if (bonusRow && bonusRow.length > bonusColumnIndex && bonusRow[bonusColumnIndex] !== undefined && bonusRow[bonusColumnIndex] !== null && bonusRow[bonusColumnIndex] !== "") {
+          var bonusValue = parseFloat(bonusRow[bonusColumnIndex]);
           if (!isNaN(bonusValue) && bonusValue > 0) {
             classBonus = bonusValue;
-            console.log("Found class bonus for " + sheetName + ": " + classBonus);
-          } else {
-            console.log("Bonus value is not a valid number or is 0");
           }
-        } else {
-          console.log("Bonus cell is empty or undefined");
         }
-      } else {
-        console.log("Sheet doesn't have row 2 yet");
       }
-      classBonuses[sheetName] = classBonus;
 
-      // לפי המבנה שתיארת: שמות בעמודה B (אינדקס 1), ניקוד בעמודה C (אינדקס 2)
-      // מתחיל משורה 4 (אינדקס 3 במערך)
-      var nameColumnIndex = 1; // עמודה B
-      var scoreColumnIndex = 2; // עמודה C
-      var dataStartRow = 3; // שורה 4 (אינדקס 3 במערך)
+      var nameColumnIndex = 1;
+      var scoreColumnIndex = 2;
+      var sugiotColumnIndex = 4;
+      var kartisiotColumnIndex = 5;
+      var dataStartRow = 3;
+
+      var sugiotCounts = [];
+      var kartisiotCounts = [];
+      for (var s = 0; s < TOTAL_SUGIOT; s++) sugiotCounts.push(0);
+      for (var k = 0; k < TOTAL_KARTISIOT; k++) kartisiotCounts.push(0);
 
       for (var row = dataStartRow; row < sheetData.length; row++) {
         var studentName = sheetData[row][nameColumnIndex];
         var studentScore = sheetData[row][scoreColumnIndex];
+        var sugiotCell = sheetData[row][sugiotColumnIndex];
+        var kartisiotCell = sheetData[row][kartisiotColumnIndex];
+        var studentSugiotArr = parseCommaSeparatedNumbers(sugiotCell, 1, TOTAL_SUGIOT);
+        var studentKartisiotArr = parseCommaSeparatedNumbers(kartisiotCell, 1, TOTAL_KARTISIOT);
+        if (studentSugiotArr.length === 0 && sugiotCell !== undefined && sugiotCell !== null && sugiotCell !== '') {
+          var singleSug = parseInt(sugiotCell, 10);
+          if (!isNaN(singleSug) && singleSug > 0) {
+            for (var si = 1; si <= Math.min(singleSug, TOTAL_SUGIOT); si++) studentSugiotArr.push(si);
+          }
+        }
+        if (studentKartisiotArr.length === 0 && kartisiotCell !== undefined && kartisiotCell !== null && kartisiotCell !== '') {
+          var singleKart = parseInt(kartisiotCell, 10);
+          if (!isNaN(singleKart) && singleKart > 0) {
+            for (var ki = 1; ki <= Math.min(singleKart, TOTAL_KARTISIOT); ki++) studentKartisiotArr.push(ki);
+          }
+        }
 
         if (studentName && studentName.toString().trim()) {
           var parsedScore = parseFloat(studentScore) || 0;
+          var totalScore = parsedScore;
+
+          for (var si = 0; si < TOTAL_SUGIOT; si++) {
+            if (studentSugiotArr.indexOf(si + 1) !== -1) sugiotCounts[si] = (sugiotCounts[si] || 0) + 1;
+          }
+          for (var ki = 0; ki < TOTAL_KARTISIOT; ki++) {
+            if (studentKartisiotArr.indexOf(ki + 1) !== -1) kartisiotCounts[ki] = (kartisiotCounts[ki] || 0) + 1;
+          }
+
           allStudents.push({
             id: 'sheet_' + sheetName + '_row_' + row,
             name: studentName.toString().trim(),
             grade: sheetName,
-            score: parsedScore
+            score: totalScore,
+            sugiotCompleted: studentSugiotArr,
+            kartisiotCompleted: studentKartisiotArr,
+            sugiot: studentSugiotArr.length,
+            kartisiot: studentKartisiotArr.length
           });
         }
       }
+
+      var studentCount = 0;
+      for (var r = dataStartRow; r < sheetData.length; r++) {
+        if (sheetData[r][nameColumnIndex] && sheetData[r][nameColumnIndex].toString().trim()) studentCount++;
+      }
+
+      var fullSugiotCount = 0;
+      var fullKartisiotCount = 0;
+      for (var si = 0; si < TOTAL_SUGIOT; si++) {
+        if (studentCount > 0 && sugiotCounts[si] === studentCount) fullSugiotCount++;
+      }
+      for (var ki = 0; ki < TOTAL_KARTISIOT; ki++) {
+        if (studentCount > 0 && kartisiotCounts[ki] === studentCount) fullKartisiotCount++;
+      }
+      var autoBonus = (fullSugiotCount + fullKartisiotCount) * BONUS_FOR_FULL_CLASS;
+      classBonuses[sheetName] = classBonus + autoBonus;
+
+      classProgress[sheetName] = {
+        grade: sheetName,
+        studentCount: studentCount,
+        sugiotCounts: sugiotCounts,
+        kartisiotCounts: kartisiotCounts,
+        autoBonus: autoBonus
+      };
     }
 
     console.log("Returning " + allStudents.length + " students");
     return createJsonResponse({
       students: allStudents,
-      classBonuses: classBonuses
+      classBonuses: classBonuses,
+      classProgress: classProgress
     });
 
   } catch (error) {
@@ -506,4 +628,37 @@ function findStudent(allData, nameColumnIndex, scoreColumnIndex, dataStartRow, s
     triedNames: triedNames,
     availableStudents: availableStudents
   };
+}
+
+/** מפרק תא (מחרוזת או מספר) לרשימת מספרים בטווח minNum..maxNum, ללא כפילות */
+function parseCommaSeparatedNumbers(cellValue, minNum, maxNum) {
+  var out = [];
+  if (cellValue === undefined || cellValue === null) return out;
+  var str = cellValue.toString().trim();
+  if (!str) return out;
+  var parts = str.split(/[\s,]+/);
+  var seen = {};
+  for (var p = 0; p < parts.length; p++) {
+    var num = parseInt(parts[p], 10);
+    if (!isNaN(num) && num >= minNum && num <= maxNum && !seen[num]) {
+      seen[num] = true;
+      out.push(num);
+    }
+  }
+  return out;
+}
+
+/** ממיר למערך מספרים בטווח, ללא כפילות */
+function ensureNumberArray(arr, minNum, maxNum) {
+  var out = [];
+  if (!arr || !Array.isArray(arr)) return out;
+  var seen = {};
+  for (var i = 0; i < arr.length; i++) {
+    var num = parseInt(arr[i], 10);
+    if (!isNaN(num) && num >= minNum && num <= maxNum && !seen[num]) {
+      seen[num] = true;
+      out.push(num);
+    }
+  }
+  return out;
 }
