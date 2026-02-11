@@ -42,6 +42,9 @@ export const fetchStudentsFromSheet = async (forceRefresh = false): Promise<Stud
       return [];
     }
     
+    // Store site lock status in a global variable (will be read by App.tsx)
+    (window as any).__siteLocked = data.siteLocked === true;
+    
     // Relaxed filtering:
     // 1. We map first to handle data cleaning
     // 2. We allow students with 0 score or invalid score (defaulting to 0) to ensure names appear
@@ -377,4 +380,65 @@ export const exportToCSV = (students: Student[]) => {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+};
+
+// Site lock functions
+export const getSiteLockStatus = async (): Promise<boolean> => {
+  if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("PASTE_YOUR")) {
+    return false;
+  }
+
+  try {
+    const url = GOOGLE_SCRIPT_URL + (GOOGLE_SCRIPT_URL.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now();
+    const response = await fetch(url, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+    });
+    
+    if (!response.ok) {
+      return false;
+    }
+    
+    const data = await response.json();
+    return data.siteLocked === true;
+  } catch (error) {
+    console.error("Failed to fetch site lock status:", error);
+    return false;
+  }
+};
+
+export const setSiteLockStatus = async (locked: boolean): Promise<boolean> => {
+  if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("PASTE_YOUR")) {
+    return false;
+  }
+
+  try {
+    const payload = JSON.stringify({
+      type: 'setSiteLock',
+      locked: locked
+    });
+
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      body: payload,
+      headers: {
+        'Content-Type': 'text/plain',
+      },
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const responseText = await response.text();
+    try {
+      const result = JSON.parse(responseText);
+      return result.success === true;
+    } catch {
+      return responseText.toLowerCase().includes('success') || responseText.toLowerCase().includes('הצלחה');
+    }
+  } catch (error) {
+    console.error("Failed to update site lock status:", error);
+    return false;
+  }
 };

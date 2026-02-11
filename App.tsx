@@ -10,7 +10,9 @@ import {
   getTopStudents,
   exportToCSV,
   saveHistory,
-  getStoredHistory
+  getStoredHistory,
+  getSiteLockStatus,
+  setSiteLockStatus
 } from './services/dataManager';
 import { GOOGLE_SCRIPT_URL } from './constants';
 import { ClassCard } from './components/ClassCard';
@@ -22,8 +24,7 @@ import { ProgressTableModal } from './components/ProgressTableModal';
 import { Search, Lock, TrendingUp, Sparkles, RefreshCw, AlertCircle, BookOpen, LayoutList } from 'lucide-react';
 import { PasswordModal } from './components/PasswordModal';
 
-const SITE_LOCK_KEY = 'gmaraton_site_locked';
-const SITE_UNLOCKED_KEY = 'gmaraton_site_unlocked';
+const SITE_UNLOCKED_KEY = 'gmaraton_site_unlocked'; // Local session unlock flag
 const UNLOCK_PASSWORD = 'zviagmaraton1';
 
 const App: React.FC = () => {
@@ -80,17 +81,28 @@ const App: React.FC = () => {
 
   // Check if site is locked on mount
   useEffect(() => {
-    const locked = localStorage.getItem(SITE_LOCK_KEY) === 'true';
-    const unlocked = localStorage.getItem(SITE_UNLOCKED_KEY) === 'true';
+    const checkLockStatus = async () => {
+      try {
+        const locked = await getSiteLockStatus();
+        setIsSiteLocked(locked);
+        
+        // Check if user has unlocked in this session
+        const unlocked = localStorage.getItem(SITE_UNLOCKED_KEY) === 'true';
+        
+        // If site is locked but user hasn't unlocked it in this session, show password modal
+        if (locked && !unlocked) {
+          setIsPasswordModalOpen(true);
+        } else {
+          setIsPasswordModalOpen(false);
+        }
+      } catch (error) {
+        console.error("Failed to check lock status:", error);
+        // Default to unlocked if we can't check
+        setIsSiteLocked(false);
+      }
+    };
     
-    setIsSiteLocked(locked);
-    
-    // If site is locked but user hasn't unlocked it in this session, show password modal
-    if (locked && !unlocked) {
-      setIsPasswordModalOpen(true);
-    } else {
-      setIsPasswordModalOpen(false);
-    }
+    checkLockStatus();
   }, []);
 
   // Initialize Data
@@ -98,18 +110,59 @@ const App: React.FC = () => {
     setHistory(getStoredHistory());
     loadData();
     
+    // Check lock status periodically and after data load
+    const checkLock = async () => {
+      try {
+        const locked = await getSiteLockStatus();
+        setIsSiteLocked(locked);
+        
+        // If site becomes locked and user hasn't unlocked, show modal
+        if (locked) {
+          const unlocked = localStorage.getItem(SITE_UNLOCKED_KEY) === 'true';
+          if (!unlocked) {
+            setIsPasswordModalOpen(true);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to check lock status:", error);
+      }
+    };
+    
+    // Check lock status after loading data
+    loadData().then(() => {
+      // Also check from the data response
+      const siteLocked = (window as any).__siteLocked;
+      if (siteLocked !== undefined) {
+        setIsSiteLocked(siteLocked);
+        if (siteLocked) {
+          const unlocked = localStorage.getItem(SITE_UNLOCKED_KEY) === 'true';
+          if (!unlocked) {
+            setIsPasswordModalOpen(true);
+          }
+        }
+      }
+      checkLock();
+    });
+    
     // Optional: Auto-refresh every 30 seconds
-    const interval = setInterval(loadData, 30000);
+    const interval = setInterval(() => {
+      loadData();
+      checkLock();
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 
   // Handle lock/unlock toggle
-  const handleToggleLock = () => {
+  const handleToggleLock = async () => {
     if (isSiteLocked) {
-      // Unlocking: just unlock directly (no password needed for unlock)
-      setIsSiteLocked(false);
-      localStorage.setItem(SITE_LOCK_KEY, 'false');
-      localStorage.setItem(SITE_UNLOCKED_KEY, 'true');
+      // Unlocking: unlock directly (no password needed for unlock)
+      const success = await setSiteLockStatus(false);
+      if (success) {
+        setIsSiteLocked(false);
+        localStorage.setItem(SITE_UNLOCKED_KEY, 'true');
+      } else {
+        alert("שגיאה בפתיחת האתר. אנא נסה שוב.");
+      }
     } else {
       // Locking: require password first
       setIsLockPasswordModalOpen(true);
@@ -123,11 +176,15 @@ const App: React.FC = () => {
   };
 
   // Handle correct password entry for locking
-  const handleLockPasswordCorrect = () => {
-    setIsSiteLocked(true);
-    localStorage.setItem(SITE_LOCK_KEY, 'true');
-    localStorage.removeItem(SITE_UNLOCKED_KEY);
-    setIsLockPasswordModalOpen(false);
+  const handleLockPasswordCorrect = async () => {
+    const success = await setSiteLockStatus(true);
+    if (success) {
+      setIsSiteLocked(true);
+      localStorage.removeItem(SITE_UNLOCKED_KEY);
+      setIsLockPasswordModalOpen(false);
+    } else {
+      alert("שגיאה בנעילת האתר. אנא נסה שוב.");
+    }
   };
 
   // Calculate derived states
