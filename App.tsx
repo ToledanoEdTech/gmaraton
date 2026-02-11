@@ -11,8 +11,7 @@ import {
   exportToCSV,
   saveHistory,
   getStoredHistory,
-  getSiteLockStatus,
-  setSiteLockStatus
+  getSiteLockStatus
 } from './services/dataManager';
 import { GOOGLE_SCRIPT_URL } from './constants';
 import { ClassCard } from './components/ClassCard';
@@ -21,7 +20,8 @@ import { AdminModal } from './components/AdminModal';
 import { HistoryModal } from './components/HistoryModal';
 import { ClassDetailModal } from './components/ClassDetailModal';
 import { ProgressTableModal } from './components/ProgressTableModal';
-import { Search, Lock, TrendingUp, Sparkles, RefreshCw, AlertCircle, BookOpen, LayoutList } from 'lucide-react';
+import { Top150Modal } from './components/Top150Modal';
+import { Search, Lock, TrendingUp, Sparkles, RefreshCw, AlertCircle, BookOpen, LayoutList, X, Trophy } from 'lucide-react';
 import { PasswordModal } from './components/PasswordModal';
 
 const SITE_UNLOCKED_KEY = 'gmaraton_site_unlocked'; // Local session unlock flag
@@ -35,12 +35,14 @@ const App: React.FC = () => {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isProgressTableOpen, setIsProgressTableOpen] = useState(false);
+  const [isTop150Open, setIsTop150Open] = useState(false);
   const [selectedClassForDetail, setSelectedClassForDetail] = useState<string | null>(null);
   
   // Site lock state
   const [isSiteLocked, setIsSiteLocked] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [isLockPasswordModalOpen, setIsLockPasswordModalOpen] = useState(false);
+  const [lockInstructionsModal, setLockInstructionsModal] = useState<'lock' | 'unlock' | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -128,21 +130,8 @@ const App: React.FC = () => {
       }
     };
     
-    // Check lock status after loading data
-    loadData().then(() => {
-      // Also check from the data response
-      const siteLocked = (window as any).__siteLocked;
-      if (siteLocked !== undefined) {
-        setIsSiteLocked(siteLocked);
-        if (siteLocked) {
-          const unlocked = localStorage.getItem(SITE_UNLOCKED_KEY) === 'true';
-          if (!unlocked) {
-            setIsPasswordModalOpen(true);
-          }
-        }
-      }
-      checkLock();
-    });
+    loadData();
+    checkLock();
     
     // Optional: Auto-refresh every 30 seconds
     const interval = setInterval(() => {
@@ -153,38 +142,22 @@ const App: React.FC = () => {
   }, []);
 
   // Handle lock/unlock toggle
-  const handleToggleLock = async () => {
+  const handleToggleLock = () => {
     if (isSiteLocked) {
-      // Unlocking: unlock directly (no password needed for unlock)
-      const success = await setSiteLockStatus(false);
-      if (success) {
-        setIsSiteLocked(false);
-        localStorage.setItem(SITE_UNLOCKED_KEY, 'true');
-      } else {
-        alert("שגיאה בפתיחת האתר. אנא נסה שוב.");
-      }
+      setLockInstructionsModal('unlock');
     } else {
-      // Locking: require password first
       setIsLockPasswordModalOpen(true);
     }
   };
 
-  // Handle correct password entry for unlocking
   const handlePasswordCorrect = () => {
     localStorage.setItem(SITE_UNLOCKED_KEY, 'true');
     setIsPasswordModalOpen(false);
   };
 
-  // Handle correct password entry for locking
-  const handleLockPasswordCorrect = async () => {
-    const success = await setSiteLockStatus(true);
-    if (success) {
-      setIsSiteLocked(true);
-      localStorage.removeItem(SITE_UNLOCKED_KEY);
-      setIsLockPasswordModalOpen(false);
-    } else {
-      alert("שגיאה בנעילת האתר. אנא נסה שוב.");
-    }
+  const handleLockPasswordCorrect = () => {
+    setIsLockPasswordModalOpen(false);
+    setLockInstructionsModal('lock');
   };
 
   // Calculate derived states
@@ -448,6 +421,13 @@ const App: React.FC = () => {
                   )}
                </button>
                <button
+                  onClick={() => setIsTop150Open(true)}
+                  className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-amber-300 border border-white/20 hover:border-amber-400/50 px-4 md:px-6 py-3 md:py-4 rounded-2xl flex items-center gap-2 md:gap-3 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
+                >
+                  <Trophy className="w-4 h-4 md:w-5 md:h-5" />
+                  <span className="font-bold text-sm md:text-base">150 המובילים</span>
+               </button>
+               <button
                   onClick={() => setIsHistoryOpen(true)}
                   className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-amber-300 border border-white/20 hover:border-amber-400/50 px-4 md:px-6 py-3 md:py-4 rounded-2xl flex items-center gap-2 md:gap-3 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
                 >
@@ -655,6 +635,12 @@ const App: React.FC = () => {
         students={students}
       />
 
+      <Top150Modal
+        isOpen={isTop150Open}
+        onClose={() => setIsTop150Open(false)}
+        students={students}
+      />
+
       {/* Password Modal for Site Unlock */}
       <PasswordModal
         isOpen={isPasswordModalOpen}
@@ -670,6 +656,33 @@ const App: React.FC = () => {
         correctPassword={UNLOCK_PASSWORD}
         mode="lock"
       />
+
+      {/* Lock/Unlock instructions modal - edit lock.json in GitHub */}
+      {lockInstructionsModal && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border-2 border-amber-500/50 rounded-3xl p-8 max-w-lg w-full shadow-2xl relative">
+            <button onClick={() => setLockInstructionsModal(null)} className="absolute top-4 left-4 text-slate-400 hover:text-white">
+              <X className="w-6 h-6" />
+            </button>
+            <div className="text-center mb-4">
+              <Lock className="w-10 h-10 text-amber-500 mx-auto mb-3" />
+              <h2 className="text-2xl font-black text-white mb-2">
+                {lockInstructionsModal === 'lock' ? 'נעילת האתר' : 'פתיחת האתר'}
+              </h2>
+            </div>
+            <p className="text-slate-300 text-right mb-4 leading-relaxed">
+              {lockInstructionsModal === 'lock' ? (
+                <>כדי לנעול את האתר: היכנס ל-GitHub לפרויקט, ערוך את הקובץ <code className="bg-slate-800 px-1 rounded">public/lock.json</code> והחלף את התוכן ל: <code className="block bg-slate-800 p-2 rounded mt-2 text-amber-400 text-left">&#123;&quot;locked&quot;: true&#125;</code> שמור והעלה (push). תוך 1–2 דקות Vercel יבנה מחדש והאתר יהיה נעול.</>
+              ) : (
+                <>כדי לפתוח את האתר: היכנס ל-GitHub לפרויקט, ערוך את הקובץ <code className="bg-slate-800 px-1 rounded">public/lock.json</code> והחלף את התוכן ל: <code className="block bg-slate-800 p-2 rounded mt-2 text-amber-400 text-left">&#123;&quot;locked&quot;: false&#125;</code> שמור והעלה (push). תוך 1–2 דקות האתר יהיה פתוח.</>
+              )}
+            </p>
+            <button onClick={() => setLockInstructionsModal(null)} className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl">
+              הבנתי
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

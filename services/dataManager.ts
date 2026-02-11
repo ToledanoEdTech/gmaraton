@@ -42,9 +42,6 @@ export const fetchStudentsFromSheet = async (forceRefresh = false): Promise<Stud
       return [];
     }
     
-    // Store site lock status in a global variable (will be read by App.tsx)
-    (window as any).__siteLocked = data.siteLocked === true;
-    
     // Relaxed filtering:
     // 1. We map first to handle data cleaning
     // 2. We allow students with 0 score or invalid score (defaulting to 0) to ensure names appear
@@ -382,82 +379,17 @@ export const exportToCSV = (students: Student[]) => {
   document.body.removeChild(link);
 };
 
-// Site lock functions
+// Site lock: read from same-origin lock.json (no CORS). To lock/unlock: edit public/lock.json in GitHub and push.
 export const getSiteLockStatus = async (): Promise<boolean> => {
-  if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("PASTE_YOUR")) {
-    return false;
-  }
-
   try {
-    const url = GOOGLE_SCRIPT_URL + (GOOGLE_SCRIPT_URL.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now();
-    // Simple GET with no custom headers to avoid CORS preflight
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      return false;
-    }
-    
+    const base = typeof window !== 'undefined' ? window.location.origin : '';
+    const url = `${base}/lock.json?t=${Date.now()}`;
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) return false;
     const data = await response.json();
-    return data.siteLocked === true;
+    return data.locked === true;
   } catch (error) {
     console.error("Failed to fetch site lock status:", error);
-    return false;
-  }
-};
-
-export const setSiteLockStatus = async (locked: boolean): Promise<boolean> => {
-  if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("PASTE_YOUR")) {
-    return false;
-  }
-
-  try {
-    const payload = JSON.stringify({
-      type: 'setSiteLock',
-      locked: locked
-    });
-
-    console.log(`[Site Lock] Setting lock status to: ${locked}`);
-
-    const response = await fetch(GOOGLE_SCRIPT_URL, {
-      method: 'POST',
-      body: payload,
-      headers: {
-        'Content-Type': 'text/plain',
-      },
-    });
-
-    console.log("[Site Lock] Response status:", response.status);
-
-    if (!response.ok) {
-      console.error(`[Site Lock] HTTP Error: ${response.status} ${response.statusText}`);
-      return false;
-    }
-
-    const responseText = await response.text();
-    console.log("[Site Lock] Raw response text:", responseText);
-
-    try {
-      const result = JSON.parse(responseText);
-      console.log("[Site Lock] Parsed response:", result);
-
-      if (result.success === true) {
-        console.log("[Site Lock] Update successful:", result.message);
-        return true;
-      } else {
-        console.error("[Site Lock] GAS returned error:", result.error);
-        return false;
-      }
-    } catch (parseError) {
-      console.warn("[Site Lock] Could not parse response as JSON:", parseError);
-      // If response contains "success" text, consider it successful
-      const isSuccess = responseText.toLowerCase().includes('success') || 
-                        responseText.toLowerCase().includes('הצלחה') ||
-                        responseText.toLowerCase().includes('נעל') ||
-                        responseText.toLowerCase().includes('פתח');
-      return isSuccess;
-    }
-  } catch (error) {
-    console.error("[Site Lock] Failed to update site lock status:", error);
     return false;
   }
 };
