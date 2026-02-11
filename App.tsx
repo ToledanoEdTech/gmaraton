@@ -20,6 +20,11 @@ import { HistoryModal } from './components/HistoryModal';
 import { ClassDetailModal } from './components/ClassDetailModal';
 import { ProgressTableModal } from './components/ProgressTableModal';
 import { Search, Lock, TrendingUp, Sparkles, RefreshCw, AlertCircle, BookOpen, LayoutList } from 'lucide-react';
+import { PasswordModal } from './components/PasswordModal';
+
+const SITE_LOCK_KEY = 'gmaraton_site_locked';
+const SITE_UNLOCKED_KEY = 'gmaraton_site_unlocked';
+const UNLOCK_PASSWORD = 'zviagmaraton1';
 
 const App: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
@@ -30,6 +35,10 @@ const App: React.FC = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isProgressTableOpen, setIsProgressTableOpen] = useState(false);
   const [selectedClassForDetail, setSelectedClassForDetail] = useState<string | null>(null);
+  
+  // Site lock state
+  const [isSiteLocked, setIsSiteLocked] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -68,6 +77,21 @@ const App: React.FC = () => {
     }
   };
 
+  // Check if site is locked on mount
+  useEffect(() => {
+    const locked = localStorage.getItem(SITE_LOCK_KEY) === 'true';
+    const unlocked = localStorage.getItem(SITE_UNLOCKED_KEY) === 'true';
+    
+    setIsSiteLocked(locked);
+    
+    // If site is locked but user hasn't unlocked it in this session, show password modal
+    if (locked && !unlocked) {
+      setIsPasswordModalOpen(true);
+    } else {
+      setIsPasswordModalOpen(false);
+    }
+  }, []);
+
   // Initialize Data
   useEffect(() => {
     setHistory(getStoredHistory());
@@ -77,6 +101,27 @@ const App: React.FC = () => {
     const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Handle lock/unlock toggle
+  const handleToggleLock = () => {
+    const newLockState = !isSiteLocked;
+    setIsSiteLocked(newLockState);
+    localStorage.setItem(SITE_LOCK_KEY, newLockState.toString());
+    
+    if (newLockState) {
+      // Locking: remove unlock flag so password will be required next time
+      localStorage.removeItem(SITE_UNLOCKED_KEY);
+    } else {
+      // Unlocking: set unlock flag for current session
+      localStorage.setItem(SITE_UNLOCKED_KEY, 'true');
+    }
+  };
+
+  // Handle correct password entry
+  const handlePasswordCorrect = () => {
+    localStorage.setItem(SITE_UNLOCKED_KEY, 'true');
+    setIsPasswordModalOpen(false);
+  };
 
   // Calculate derived states
   const classSummaries = useMemo(() => calculateClassSummaries(students), [students]);
@@ -226,6 +271,10 @@ const App: React.FC = () => {
       );
   }
 
+  // Check if site is locked and user hasn't unlocked it
+  const isUnlocked = localStorage.getItem(SITE_UNLOCKED_KEY) === 'true';
+  const shouldShowContent = !isSiteLocked || isUnlocked;
+
   return (
     <div className="relative min-h-screen bg-slate-900 flex flex-col font-sans text-white overflow-x-hidden selection:bg-amber-500/30">
       
@@ -255,6 +304,7 @@ const App: React.FC = () => {
       )}
 
       {/* Main Content Wrapper */}
+      {shouldShowContent && (
       <div className="relative z-10 flex-1 flex flex-col p-3 md:p-4 lg:p-6 xl:p-8 max-w-[1600px] mx-auto w-full">
         
         {/* Header */}
@@ -311,6 +361,27 @@ const App: React.FC = () => {
             <div className="flex items-center gap-2 md:gap-4 w-full md:w-auto justify-center md:justify-end">
                <button onClick={loadData} className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white p-3 md:p-4 rounded-2xl hover:text-amber-300 transition-all border border-white/20 hover:border-amber-400/50 shadow-lg" title="רענן נתונים">
                    <RefreshCw className={`w-5 h-5 md:w-6 md:h-6 ${isLoading ? 'animate-spin' : ''}`} />
+               </button>
+               <button
+                  onClick={handleToggleLock}
+                  className={`backdrop-blur-md border px-4 md:px-6 py-3 md:py-4 rounded-2xl flex items-center gap-2 md:gap-3 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 ${
+                    isSiteLocked 
+                      ? 'bg-red-500/20 hover:bg-red-500/30 text-red-300 border-red-500/50 hover:border-red-500' 
+                      : 'bg-white/10 hover:bg-white/20 text-white border-white/20 hover:border-amber-400/50'
+                  }`}
+                  title={isSiteLocked ? "פתח את האתר" : "נעל את האתר"}
+               >
+                  {isSiteLocked ? (
+                    <>
+                      <Lock className="w-4 h-4 md:w-5 md:h-5 rotate-180" />
+                      <span className="font-bold text-sm md:text-base">פתח אתר</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4 md:w-5 md:h-5" />
+                      <span className="font-bold text-sm md:text-base">נעל אתר</span>
+                    </>
+                  )}
                </button>
                <button
                   onClick={() => setIsHistoryOpen(true)}
@@ -476,6 +547,7 @@ const App: React.FC = () => {
 
         </div>
       </div>
+      )}
 
       {/* Modals */}
       <AdminModal 
@@ -517,6 +589,13 @@ const App: React.FC = () => {
         isOpen={isProgressTableOpen}
         onClose={() => setIsProgressTableOpen(false)}
         students={students}
+      />
+
+      {/* Password Modal for Site Lock */}
+      <PasswordModal
+        isOpen={isPasswordModalOpen}
+        onPasswordCorrect={handlePasswordCorrect}
+        correctPassword={UNLOCK_PASSWORD}
       />
 
     </div>
