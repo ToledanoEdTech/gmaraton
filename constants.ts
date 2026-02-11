@@ -6,7 +6,7 @@ export const ADMIN_PASSWORD = "zviagmara123";
 // ---------------------------------------------------------
 // Google Apps Script Web App URL
 // ---------------------------------------------------------
-export const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzvXpFcjGPktAZ3lOEBpm9Ja80czaBLQl3h1hMLDjWuTUmTu5eD28nEh1JsV17oxamBzA/exec"; 
+export const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz89WP-K6IiCD72k8plcYdBz9DQcjkP76vGgNq5bhW1FyglIf0qMXFmHF4AhX9TBAY1/exec"; 
 
 // Initial Mock Data is empty now. Data comes from Google Sheets.
 export const INITIAL_STUDENTS: Student[] = [];

@@ -391,8 +391,13 @@ export const getSiteLockStatus = async (): Promise<boolean> => {
   try {
     const url = GOOGLE_SCRIPT_URL + (GOOGLE_SCRIPT_URL.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now();
     const response = await fetch(url, {
+      method: 'GET',
+      mode: 'cors',
       cache: 'no-store',
-      headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+      headers: { 
+        'Cache-Control': 'no-cache', 
+        'Pragma': 'no-cache'
+      }
     });
     
     if (!response.ok) {
@@ -418,6 +423,8 @@ export const setSiteLockStatus = async (locked: boolean): Promise<boolean> => {
       locked: locked
     });
 
+    console.log(`[Site Lock] Setting lock status to: ${locked}`);
+
     const response = await fetch(GOOGLE_SCRIPT_URL, {
       method: 'POST',
       body: payload,
@@ -426,19 +433,38 @@ export const setSiteLockStatus = async (locked: boolean): Promise<boolean> => {
       },
     });
 
+    console.log("[Site Lock] Response status:", response.status);
+
     if (!response.ok) {
+      console.error(`[Site Lock] HTTP Error: ${response.status} ${response.statusText}`);
       return false;
     }
 
     const responseText = await response.text();
+    console.log("[Site Lock] Raw response text:", responseText);
+
     try {
       const result = JSON.parse(responseText);
-      return result.success === true;
-    } catch {
-      return responseText.toLowerCase().includes('success') || responseText.toLowerCase().includes('הצלחה');
+      console.log("[Site Lock] Parsed response:", result);
+
+      if (result.success === true) {
+        console.log("[Site Lock] Update successful:", result.message);
+        return true;
+      } else {
+        console.error("[Site Lock] GAS returned error:", result.error);
+        return false;
+      }
+    } catch (parseError) {
+      console.warn("[Site Lock] Could not parse response as JSON:", parseError);
+      // If response contains "success" text, consider it successful
+      const isSuccess = responseText.toLowerCase().includes('success') || 
+                        responseText.toLowerCase().includes('הצלחה') ||
+                        responseText.toLowerCase().includes('נעל') ||
+                        responseText.toLowerCase().includes('פתח');
+      return isSuccess;
     }
   } catch (error) {
-    console.error("Failed to update site lock status:", error);
+    console.error("[Site Lock] Failed to update site lock status:", error);
     return false;
   }
 };
