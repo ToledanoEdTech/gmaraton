@@ -5,9 +5,10 @@ interface Props {
   isOpen: boolean;
   onPasswordCorrect: () => void;
   correctPassword: string;
+  mode?: 'unlock' | 'lock'; // 'unlock' = unlocking site, 'lock' = locking site
 }
 
-export const PasswordModal: React.FC<Props> = ({ isOpen, onPasswordCorrect, correctPassword }) => {
+export const PasswordModal: React.FC<Props> = ({ isOpen, onPasswordCorrect, correctPassword, mode = 'unlock' }) => {
   const [passwordInput, setPasswordInput] = useState("");
   const [error, setError] = useState("");
 
@@ -27,16 +28,25 @@ export const PasswordModal: React.FC<Props> = ({ isOpen, onPasswordCorrect, corr
     }
   };
 
+  const isLockMode = mode === 'lock';
+  const title = isLockMode ? "נעילת האתר" : "האתר נעול";
+  const description = isLockMode 
+    ? "אנא הזן קוד גישה כדי לנעול את האתר" 
+    : "אנא הזן קוד גישה כדי להמשיך";
+  const buttonText = isLockMode ? "נעל" : "כניסה";
+
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="bg-slate-900 border-2 border-amber-500/50 rounded-3xl p-8 max-w-md w-full shadow-2xl relative">
+      <div className={`bg-slate-900 border-2 rounded-3xl p-8 max-w-md w-full shadow-2xl relative ${
+        isLockMode ? 'border-red-500/50' : 'border-amber-500/50'
+      }`}>
         <div className="absolute top-4 left-4">
-          <Lock className="w-8 h-8 text-amber-500" />
+          <Lock className={`w-8 h-8 ${isLockMode ? 'text-red-500' : 'text-amber-500'}`} />
         </div>
         
         <div className="text-center mb-6">
-          <h2 className="text-3xl font-black text-white mb-2">האתר נעול</h2>
-          <p className="text-slate-300 text-lg">אנא הזן קוד גישה כדי להמשיך</p>
+          <h2 className="text-3xl font-black text-white mb-2">{title}</h2>
+          <p className="text-slate-300 text-lg">{description}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -63,9 +73,13 @@ export const PasswordModal: React.FC<Props> = ({ isOpen, onPasswordCorrect, corr
 
           <button
             type="submit"
-            className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+            className={`w-full font-bold py-4 rounded-xl transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 ${
+              isLockMode 
+                ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white'
+                : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white'
+            }`}
           >
-            כניסה
+            {buttonText}
           </button>
         </form>
       </div>

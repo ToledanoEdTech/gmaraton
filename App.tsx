@@ -39,6 +39,7 @@ const App: React.FC = () => {
   // Site lock state
   const [isSiteLocked, setIsSiteLocked] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isLockPasswordModalOpen, setIsLockPasswordModalOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -104,23 +105,29 @@ const App: React.FC = () => {
 
   // Handle lock/unlock toggle
   const handleToggleLock = () => {
-    const newLockState = !isSiteLocked;
-    setIsSiteLocked(newLockState);
-    localStorage.setItem(SITE_LOCK_KEY, newLockState.toString());
-    
-    if (newLockState) {
-      // Locking: remove unlock flag so password will be required next time
-      localStorage.removeItem(SITE_UNLOCKED_KEY);
-    } else {
-      // Unlocking: set unlock flag for current session
+    if (isSiteLocked) {
+      // Unlocking: just unlock directly (no password needed for unlock)
+      setIsSiteLocked(false);
+      localStorage.setItem(SITE_LOCK_KEY, 'false');
       localStorage.setItem(SITE_UNLOCKED_KEY, 'true');
+    } else {
+      // Locking: require password first
+      setIsLockPasswordModalOpen(true);
     }
   };
 
-  // Handle correct password entry
+  // Handle correct password entry for unlocking
   const handlePasswordCorrect = () => {
     localStorage.setItem(SITE_UNLOCKED_KEY, 'true');
     setIsPasswordModalOpen(false);
+  };
+
+  // Handle correct password entry for locking
+  const handleLockPasswordCorrect = () => {
+    setIsSiteLocked(true);
+    localStorage.setItem(SITE_LOCK_KEY, 'true');
+    localStorage.removeItem(SITE_UNLOCKED_KEY);
+    setIsLockPasswordModalOpen(false);
   };
 
   // Calculate derived states
@@ -591,11 +598,20 @@ const App: React.FC = () => {
         students={students}
       />
 
-      {/* Password Modal for Site Lock */}
+      {/* Password Modal for Site Unlock */}
       <PasswordModal
         isOpen={isPasswordModalOpen}
         onPasswordCorrect={handlePasswordCorrect}
         correctPassword={UNLOCK_PASSWORD}
+        mode="unlock"
+      />
+
+      {/* Password Modal for Site Lock */}
+      <PasswordModal
+        isOpen={isLockPasswordModalOpen}
+        onPasswordCorrect={handleLockPasswordCorrect}
+        correctPassword={UNLOCK_PASSWORD}
+        mode="lock"
       />
 
     </div>
