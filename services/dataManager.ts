@@ -390,15 +390,8 @@ export const getSiteLockStatus = async (): Promise<boolean> => {
 
   try {
     const url = GOOGLE_SCRIPT_URL + (GOOGLE_SCRIPT_URL.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now();
-    const response = await fetch(url, {
-      method: 'GET',
-      mode: 'cors',
-      cache: 'no-store',
-      headers: { 
-        'Cache-Control': 'no-cache', 
-        'Pragma': 'no-cache'
-      }
-    });
+    // Simple GET with no custom headers to avoid CORS preflight
+    const response = await fetch(url);
     
     if (!response.ok) {
       return false;
