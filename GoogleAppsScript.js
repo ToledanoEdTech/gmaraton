@@ -114,9 +114,55 @@ function doPost(e) {
       var currentValue = targetRange.getValue();
       console.log("Current value in cell D2: '" + currentValue + "' (type: " + typeof currentValue + ", isEmpty: " + (currentValue === "" || currentValue === null || currentValue === undefined) + ")");
       
-      // Write the new value
-      console.log("Writing value " + bonusToSet + " to cell D2...");
-      targetRange.setValue(bonusToSet);
+      // חשב את הבונוס האוטומטי הקיים כדי לשמור עליו
+      var currentAutoBonus = 0;
+      var allDataForBonus = sheet.getDataRange().getValues();
+      var nameColForBonus = 1, sugiotColForBonus = 4, kartisiotColForBonus = 5, dataStartForBonus = 3;
+      var studentCountForBonus = 0;
+      var sugiotCountsForBonus = [];
+      var kartisiotCountsForBonus = [];
+      for (var s = 0; s < TOTAL_SUGIOT; s++) sugiotCountsForBonus.push(0);
+      for (var k = 0; k < TOTAL_KARTISIOT; k++) kartisiotCountsForBonus.push(0);
+      
+      for (var r = dataStartForBonus; r < allDataForBonus.length; r++) {
+        var stNameForBonus = allDataForBonus[r][nameColForBonus];
+        if (stNameForBonus && stNameForBonus.toString().trim()) {
+          studentCountForBonus++;
+          var stSugArrForBonus = parseCommaSeparatedNumbers(allDataForBonus[r][sugiotColForBonus], 1, TOTAL_SUGIOT);
+          var stKartArrForBonus = parseCommaSeparatedNumbers(allDataForBonus[r][kartisiotColForBonus], 1, TOTAL_KARTISIOT);
+          if (stSugArrForBonus.length === 0 && allDataForBonus[r][sugiotColForBonus] !== undefined && allDataForBonus[r][sugiotColForBonus] !== null && allDataForBonus[r][sugiotColForBonus] !== '') {
+            var singleSForBonus = parseInt(allDataForBonus[r][sugiotColForBonus], 10);
+            if (!isNaN(singleSForBonus) && singleSForBonus > 0) { for (var si = 1; si <= Math.min(singleSForBonus, TOTAL_SUGIOT); si++) stSugArrForBonus.push(si); }
+          }
+          if (stKartArrForBonus.length === 0 && allDataForBonus[r][kartisiotColForBonus] !== undefined && allDataForBonus[r][kartisiotColForBonus] !== null && allDataForBonus[r][kartisiotColForBonus] !== '') {
+            var singleKForBonus = parseInt(allDataForBonus[r][kartisiotColForBonus], 10);
+            if (!isNaN(singleKForBonus) && singleKForBonus > 0) { for (var ki = 1; ki <= Math.min(singleKForBonus, TOTAL_KARTISIOT); ki++) stKartArrForBonus.push(ki); }
+          }
+          for (var si = 0; si < TOTAL_SUGIOT; si++) {
+            if (stSugArrForBonus.indexOf(si + 1) !== -1) sugiotCountsForBonus[si] = (sugiotCountsForBonus[si] || 0) + 1;
+          }
+          for (var ki = 0; ki < TOTAL_KARTISIOT; ki++) {
+            if (stKartArrForBonus.indexOf(ki + 1) !== -1) kartisiotCountsForBonus[ki] = (kartisiotCountsForBonus[ki] || 0) + 1;
+          }
+        }
+      }
+      var fullSugiotCountForBonus = 0;
+      var fullKartisiotCountForBonus = 0;
+      for (var si = 0; si < TOTAL_SUGIOT; si++) {
+        if (studentCountForBonus > 0 && sugiotCountsForBonus[si] === studentCountForBonus) fullSugiotCountForBonus++;
+      }
+      for (var ki = 0; ki < TOTAL_KARTISIOT; ki++) {
+        if (studentCountForBonus > 0 && kartisiotCountsForBonus[ki] === studentCountForBonus) fullKartisiotCountForBonus++;
+      }
+      currentAutoBonus = (fullSugiotCountForBonus + fullKartisiotCountForBonus) * BONUS_FOR_FULL_CLASS;
+      
+      // D2 יכיל את הבונוס הכולל: בונוס ידני + בונוס אוטומטי
+      var totalBonus = bonusToSet + currentAutoBonus;
+      console.log("Current auto bonus: " + currentAutoBonus + ", Manual bonus: " + bonusToSet + ", Total: " + totalBonus);
+      
+      // Write the new total value (manual + auto)
+      console.log("Writing total value " + totalBonus + " to cell D2...");
+      targetRange.setValue(totalBonus);
       SpreadsheetApp.flush();
       
       // Wait a moment and verify the update
@@ -133,10 +179,10 @@ function doPost(e) {
       
       // Verify the value was written correctly
       var verifiedValue = parseFloat(newValue);
-      if (isNaN(verifiedValue) || verifiedValue !== bonusToSet) {
-        console.log("WARNING: Value verification failed! Expected: " + bonusToSet + ", Got: " + newValue);
+      if (isNaN(verifiedValue) || verifiedValue !== totalBonus) {
+        console.log("WARNING: Value verification failed! Expected: " + totalBonus + ", Got: " + newValue);
         // Try writing again
-        targetRange.setValue(bonusToSet);
+        targetRange.setValue(totalBonus);
         SpreadsheetApp.flush();
         Utilities.sleep(200);
         newValue = targetRange.getValue();
@@ -149,7 +195,9 @@ function doPost(e) {
         success: true,
         message: "בונוס כיתתי עודכן בהצלחה",
         grade: studentGrade,
-        bonus: bonusToSet,
+        manualBonus: bonusToSet,
+        autoBonus: currentAutoBonus,
+        totalBonus: totalBonus,
         previousValue: currentValue !== null && currentValue !== undefined ? currentValue.toString() : "",
         newValue: newValue !== null && newValue !== undefined ? newValue.toString() : "",
         sheetName: sheet.getName(),
@@ -218,13 +266,141 @@ function doPost(e) {
       SpreadsheetApp.flush();
       Utilities.sleep(500);
 
+      // עדכן את הבונוס הכיתתי ב-D2 על בסיס סוגיות וכרטיסיות שכולם סיימו
+      // D2 יכיל את הבונוס הכולל: בונוס ידני (אם קיים) + בונוס אוטומטי
+      var bonusColumnIndex = 3; // עמודה D (אינדקס 3 במערך = עמודה 4 בפועל)
+      var bonusRowIndex = 1; // שורה 2 (אינדקס 1 במערך = שורה 2 בפועל)
+      var targetRow = bonusRowIndex + 1; // שורה 2 בפועל
+      var targetColumn = bonusColumnIndex + 1; // עמודה D בפועל (עמודה 4)
+      
+      // קרא את הבונוס הקיים מ-D2
+      var currentBonusInD2 = 0;
+      var currentBonusCell = sheet.getRange(targetRow, targetColumn);
+      var currentBonusValue = currentBonusCell.getValue();
+      console.log("[updateSugiotKartisiot] Grade: " + uGrade + ", Reading current D2 value: " + currentBonusValue + " (type: " + typeof currentBonusValue + ")");
+      if (currentBonusValue !== null && currentBonusValue !== undefined && currentBonusValue !== "") {
+        var parsedCurrentBonus = parseFloat(currentBonusValue);
+        if (!isNaN(parsedCurrentBonus)) {
+          currentBonusInD2 = parsedCurrentBonus;
+          console.log("[updateSugiotKartisiot] Grade: " + uGrade + ", Parsed currentBonusInD2: " + currentBonusInD2);
+        } else {
+          console.log("[updateSugiotKartisiot] Grade: " + uGrade + ", D2 value is not a number: " + currentBonusValue);
+        }
+      } else {
+        console.log("[updateSugiotKartisiot] Grade: " + uGrade + ", D2 is empty/null/undefined, using 0");
+      }
+      
+      // חשב את הבונוס האוטומטי הקודם (לפני העדכון) על בסיס הנתונים הישנים
+      var oldAutoBonus = 0;
+      var oldSugiotCounts = [];
+      var oldKartisiotCounts = [];
+      for (var s = 0; s < TOTAL_SUGIOT; s++) oldSugiotCounts.push(0);
+      for (var k = 0; k < TOTAL_KARTISIOT; k++) oldKartisiotCounts.push(0);
+      var oldStudentCount = 0;
+      for (var r = dataStart; r < allData.length; r++) {
+        var oldStName = allData[r][nameCol];
+        if (oldStName && oldStName.toString().trim()) {
+          oldStudentCount++;
+          var oldStSugArr = parseCommaSeparatedNumbers(allData[r][sugiotCol], 1, TOTAL_SUGIOT);
+          var oldStKartArr = parseCommaSeparatedNumbers(allData[r][kartisiotCol], 1, TOTAL_KARTISIOT);
+          if (oldStSugArr.length === 0 && allData[r][sugiotCol] !== undefined && allData[r][sugiotCol] !== null && allData[r][sugiotCol] !== '') {
+            var oldSingleS = parseInt(allData[r][sugiotCol], 10);
+            if (!isNaN(oldSingleS) && oldSingleS > 0) { for (var si = 1; si <= Math.min(oldSingleS, TOTAL_SUGIOT); si++) oldStSugArr.push(si); }
+          }
+          if (oldStKartArr.length === 0 && allData[r][kartisiotCol] !== undefined && allData[r][kartisiotCol] !== null && allData[r][kartisiotCol] !== '') {
+            var oldSingleK = parseInt(allData[r][kartisiotCol], 10);
+            if (!isNaN(oldSingleK) && oldSingleK > 0) { for (var ki = 1; ki <= Math.min(oldSingleK, TOTAL_KARTISIOT); ki++) oldStKartArr.push(ki); }
+          }
+          for (var si = 0; si < TOTAL_SUGIOT; si++) {
+            if (oldStSugArr.indexOf(si + 1) !== -1) oldSugiotCounts[si] = (oldSugiotCounts[si] || 0) + 1;
+          }
+          for (var ki = 0; ki < TOTAL_KARTISIOT; ki++) {
+            if (oldStKartArr.indexOf(ki + 1) !== -1) oldKartisiotCounts[ki] = (oldKartisiotCounts[ki] || 0) + 1;
+          }
+        }
+      }
+      var oldFullSugiotCount = 0;
+      var oldFullKartisiotCount = 0;
+      for (var si = 0; si < TOTAL_SUGIOT; si++) {
+        if (oldStudentCount > 0 && oldSugiotCounts[si] === oldStudentCount) oldFullSugiotCount++;
+      }
+      for (var ki = 0; ki < TOTAL_KARTISIOT; ki++) {
+        if (oldStudentCount > 0 && oldKartisiotCounts[ki] === oldStudentCount) oldFullKartisiotCount++;
+      }
+      oldAutoBonus = (oldFullSugiotCount + oldFullKartisiotCount) * BONUS_FOR_FULL_CLASS;
+      
+      // חשב את הבונוס האוטומטי החדש (אחרי העדכון)
+      var allDataAfterUpdate = sheet.getDataRange().getValues();
+      var studentCount = 0;
+      var sugiotCounts = [];
+      var kartisiotCounts = [];
+      for (var s = 0; s < TOTAL_SUGIOT; s++) sugiotCounts.push(0);
+      for (var k = 0; k < TOTAL_KARTISIOT; k++) kartisiotCounts.push(0);
+      
+      for (var r = dataStart; r < allDataAfterUpdate.length; r++) {
+        var stName = allDataAfterUpdate[r][nameCol];
+        if (stName && stName.toString().trim()) {
+          studentCount++;
+          var stSugArr = parseCommaSeparatedNumbers(allDataAfterUpdate[r][sugiotCol], 1, TOTAL_SUGIOT);
+          var stKartArr = parseCommaSeparatedNumbers(allDataAfterUpdate[r][kartisiotCol], 1, TOTAL_KARTISIOT);
+          if (stSugArr.length === 0 && allDataAfterUpdate[r][sugiotCol] !== undefined && allDataAfterUpdate[r][sugiotCol] !== null && allDataAfterUpdate[r][sugiotCol] !== '') {
+            var singleS = parseInt(allDataAfterUpdate[r][sugiotCol], 10);
+            if (!isNaN(singleS) && singleS > 0) { for (var si = 1; si <= Math.min(singleS, TOTAL_SUGIOT); si++) stSugArr.push(si); }
+          }
+          if (stKartArr.length === 0 && allDataAfterUpdate[r][kartisiotCol] !== undefined && allDataAfterUpdate[r][kartisiotCol] !== null && allDataAfterUpdate[r][kartisiotCol] !== '') {
+            var singleK = parseInt(allDataAfterUpdate[r][kartisiotCol], 10);
+            if (!isNaN(singleK) && singleK > 0) { for (var ki = 1; ki <= Math.min(singleK, TOTAL_KARTISIOT); ki++) stKartArr.push(ki); }
+          }
+          for (var si = 0; si < TOTAL_SUGIOT; si++) {
+            if (stSugArr.indexOf(si + 1) !== -1) sugiotCounts[si] = (sugiotCounts[si] || 0) + 1;
+          }
+          for (var ki = 0; ki < TOTAL_KARTISIOT; ki++) {
+            if (stKartArr.indexOf(ki + 1) !== -1) kartisiotCounts[ki] = (kartisiotCounts[ki] || 0) + 1;
+          }
+        }
+      }
+      var fullSugiotCount = 0;
+      var fullKartisiotCount = 0;
+      for (var si = 0; si < TOTAL_SUGIOT; si++) {
+        if (studentCount > 0 && sugiotCounts[si] === studentCount) fullSugiotCount++;
+      }
+      for (var ki = 0; ki < TOTAL_KARTISIOT; ki++) {
+        if (studentCount > 0 && kartisiotCounts[ki] === studentCount) fullKartisiotCount++;
+      }
+      var newAutoBonus = (fullSugiotCount + fullKartisiotCount) * BONUS_FOR_FULL_CLASS;
+      
+      // חשב את הבונוס הידני הקיים (אם יש) על ידי חיסור הבונוס האוטומטי הקודם מהבונוס הכולל ב-D2
+      var manualBonus = currentBonusInD2 - oldAutoBonus;
+      if (manualBonus < 0) manualBonus = 0; // אם הבונוס האוטומטי הקודם גדול מהבונוס הכולל, אין בונוס ידני
+      
+      // עדכן את D2 עם הבונוס הכולל החדש: בונוס ידני (אם קיים) + בונוס אוטומטי חדש
+      var newTotalBonus = manualBonus + newAutoBonus;
+      console.log("[updateSugiotKartisiot] Grade: " + uGrade + ", Calculation summary:");
+      console.log("  - currentBonusInD2 (from D2): " + currentBonusInD2);
+      console.log("  - oldAutoBonus (calculated): " + oldAutoBonus);
+      console.log("  - manualBonus (currentBonusInD2 - oldAutoBonus): " + manualBonus);
+      console.log("  - newAutoBonus (calculated): " + newAutoBonus);
+      console.log("  - newTotalBonus (manualBonus + newAutoBonus): " + newTotalBonus);
+      console.log("[updateSugiotKartisiot] Grade: " + uGrade + ", Writing newTotalBonus " + newTotalBonus + " to D2 (row " + targetRow + ", column " + targetColumn + ")");
+      sheet.getRange(targetRow, targetColumn).setValue(newTotalBonus);
+      SpreadsheetApp.flush();
+      Utilities.sleep(200);
+      
+      // Verify the write
+      var verifyWrite = sheet.getRange(targetRow, targetColumn).getValue();
+      console.log("[updateSugiotKartisiot] Grade: " + uGrade + ", Verified D2 value after write: " + verifyWrite + " (expected: " + newTotalBonus + ")");
+      if (Math.abs(parseFloat(verifyWrite) - newTotalBonus) > 0.01) {
+        console.log("[updateSugiotKartisiot] WARNING: Grade " + uGrade + " - D2 write verification failed! Expected: " + newTotalBonus + ", Got: " + verifyWrite);
+      }
+
       return createJsonResponse({
         success: true,
         message: "סוגיות וכרטיסיות עודכנו, ניקוד עודכן בקובץ",
         student: uName,
         grade: uGrade,
         sugiotCompleted: uSugiotArr,
-        kartisiotCompleted: uKartisiotArr
+        kartisiotCompleted: uKartisiotArr,
+        classBonusUpdated: newTotalBonus
       });
     }
 
@@ -359,35 +535,72 @@ function doGet(e) {
       var sheetName = sheet.getName();
       console.log("Processing sheet: " + sheetName);
 
+      // קרא את הנתונים מהגיליון
+      // חשוב: getRange(1,1,...) מתחיל משורה 1, עמודה 1
+      // אז sheetData[0] = שורה 1, sheetData[1] = שורה 2
       var lastRow = Math.max(sheet.getLastRow(), 2);
       var lastCol = Math.max(sheet.getLastColumn(), 6);
       var sheetData = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+      console.log("[doGet] Sheet: " + sheetName + ", Reading range: rows 1-" + lastRow + ", cols 1-" + lastCol);
 
       if (sheetData.length < 2) {
         console.log("Skipping sheet " + sheetName + " - no data");
         continue;
       }
 
-      var bonusColumnIndex = 3;
-      var bonusRowIndex = 1;
+      // ============================================
+      // קריאת בונוס כיתתי מ-D2 בלבד - רק הערך הזה!
+      // D2 = שורה 2, עמודה D
+      // ============================================
       var classBonus = 0;
-
-      if (sheetData.length > bonusRowIndex) {
-        var bonusRow = sheetData[bonusRowIndex];
-        if (bonusRow && bonusRow.length > bonusColumnIndex && bonusRow[bonusColumnIndex] !== undefined && bonusRow[bonusColumnIndex] !== null && bonusRow[bonusColumnIndex] !== "") {
-          var bonusValue = parseFloat(bonusRow[bonusColumnIndex]);
-          if (!isNaN(bonusValue) && bonusValue > 0) {
-            classBonus = bonusValue;
+      
+      // קריאה ישירה מ-D2 - זה הכי אמין
+      // חשוב: רק הערך מ-D2, ללא שום חישוב או הוספה
+      try {
+        var directD2Value = sheet.getRange(2, 4).getValue(); // שורה 2, עמודה D
+        console.log("[doGet] Sheet: " + sheetName + ", D2 direct read (getRange(2,4)): " + directD2Value + " (type: " + typeof directD2Value + ")");
+        
+        if (directD2Value !== null && directD2Value !== undefined && directD2Value !== "") {
+          var parsedValue = parseFloat(directD2Value);
+          if (!isNaN(parsedValue)) {
+            classBonus = parsedValue; // רק הערך מ-D2, ללא שום שינוי
+            console.log("[doGet] Sheet: " + sheetName + ", D2 parsed to classBonus: " + classBonus);
+          } else {
+            console.log("[doGet] Sheet: " + sheetName + ", D2 is not a number: " + directD2Value);
+            classBonus = 0;
           }
+        } else {
+          console.log("[doGet] Sheet: " + sheetName + ", D2 is empty/null/undefined, setting classBonus to 0");
+          classBonus = 0;
+        }
+      } catch (error) {
+        console.log("[doGet] Sheet: " + sheetName + ", Error reading D2: " + error.message);
+        classBonus = 0;
+      }
+      
+      // בדיקה נוספת - קרא שוב כדי לוודא
+      var verifyD2 = sheet.getRange(2, 4).getValue();
+      if (verifyD2 !== classBonus) {
+        console.log("[doGet] WARNING: Sheet " + sheetName + " - D2 verification failed! First read: " + classBonus + ", Second read: " + verifyD2);
+        var verifyParsed = parseFloat(verifyD2);
+        if (!isNaN(verifyParsed)) {
+          classBonus = verifyParsed;
+          console.log("[doGet] Sheet: " + sheetName + ", Using verified value: " + classBonus);
         }
       }
 
+      // ============================================
+      // חשוב: הבונוס הכיתתי (classBonus) כבר נקרא מ-D2 למעלה
+      // לא מוסיפים שום חישוב או בונוס נוסף!
+      // ============================================
+      
       var nameColumnIndex = 1;
       var scoreColumnIndex = 2;
       var sugiotColumnIndex = 4;
       var kartisiotColumnIndex = 5;
       var dataStartRow = 3;
 
+      // הנתונים הבאים רק למידע (classProgress), לא משפיעים על classBonuses
       var sugiotCounts = [];
       var kartisiotCounts = [];
       for (var s = 0; s < TOTAL_SUGIOT; s++) sugiotCounts.push(0);
@@ -442,27 +655,32 @@ function doGet(e) {
         if (sheetData[r][nameColumnIndex] && sheetData[r][nameColumnIndex].toString().trim()) studentCount++;
       }
 
-      var fullSugiotCount = 0;
-      var fullKartisiotCount = 0;
-      for (var si = 0; si < TOTAL_SUGIOT; si++) {
-        if (studentCount > 0 && sugiotCounts[si] === studentCount) fullSugiotCount++;
-      }
-      for (var ki = 0; ki < TOTAL_KARTISIOT; ki++) {
-        if (studentCount > 0 && kartisiotCounts[ki] === studentCount) fullKartisiotCount++;
-      }
-      var autoBonus = (fullSugiotCount + fullKartisiotCount) * BONUS_FOR_FULL_CLASS;
-      classBonuses[sheetName] = classBonus + autoBonus;
+      // ============================================
+      // חשוב מאוד: הבונוס הכיתתי רק מ-D2!
+      // classBonus כבר נקרא מ-D2 למעלה
+      // לא מוסיפים שום חישוב, לא autoBonus, כלום!
+      // רק הערך מ-D2 בלבד!
+      // ============================================
+      classBonuses[sheetName] = classBonus;
+      console.log("[doGet] FINAL: Sheet: " + sheetName + ", classBonuses[" + sheetName + "] = " + classBonus + " (DIRECTLY FROM D2 CELL, NO CALCULATION, NO ADDITION)");
 
+      // classProgress - רק למידע, לא משפיע על הבונוס הכיתתי
       classProgress[sheetName] = {
         grade: sheetName,
         studentCount: studentCount,
         sugiotCounts: sugiotCounts,
         kartisiotCounts: kartisiotCounts,
-        autoBonus: autoBonus
+        autoBonus: 0 // לא משתמשים בזה, רק למידע
       };
     }
 
     console.log("Returning " + allStudents.length + " students");
+    console.log("=== FINAL classBonuses object (from D2 ONLY, NO CALCULATION) ===");
+    for (var gradeName in classBonuses) {
+      console.log("  " + gradeName + ": " + classBonuses[gradeName] + " (from D2)");
+    }
+    console.log("Full classBonuses:", JSON.stringify(classBonuses));
+    // חשוב: מחזירים רק את classBonuses מ-D2, ללא שום חישוב נוסף
     return createJsonResponse({
       students: allStudents,
       classBonuses: classBonuses,

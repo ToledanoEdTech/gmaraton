@@ -13,14 +13,15 @@ export const fetchStudentsFromSheet = async (forceRefresh = false): Promise<Stud
     return [];
   }
 
+  // הוסף timestamp כדי למנוע cache, אבל בלי headers שגורמים ל-preflight
   const url = forceRefresh
     ? GOOGLE_SCRIPT_URL + (GOOGLE_SCRIPT_URL.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now()
-    : GOOGLE_SCRIPT_URL;
+    : GOOGLE_SCRIPT_URL + (GOOGLE_SCRIPT_URL.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now();
 
   try {
+    // חשוב: לא להוסיף headers מורכבים כדי למנוע preflight CORS
     const response = await fetch(url, {
-      cache: forceRefresh ? 'no-store' : 'default',
-      headers: forceRefresh ? { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } : undefined
+      cache: forceRefresh ? 'no-store' : 'default'
     });
     if (!response.ok) {
       throw new Error('Network response was not ok');
@@ -36,8 +37,21 @@ export const fetchStudentsFromSheet = async (forceRefresh = false): Promise<Stud
       classProgressCache = {};
     } else if (data.students && Array.isArray(data.students)) {
       studentsArray = data.students;
-      classBonusesCache = data.classBonuses || {};
+      // רק מהשרת (מ-D2) - לא חישוב אוטומטי
+      // חשוב: מחליפים את ה-cache עם הערכים החדשים מהשרת
+      classBonusesCache = {};
+      if (data.classBonuses) {
+        for (var grade in data.classBonuses) {
+          classBonusesCache[grade] = data.classBonuses[grade];
+        }
+      }
       classProgressCache = data.classProgress || {};
+      console.log("[fetchStudentsFromSheet] Class bonuses from server (D2 only):", classBonusesCache);
+      console.log("[fetchStudentsFromSheet] Raw classBonuses from response:", JSON.stringify(data.classBonuses));
+      console.log("[fetchStudentsFromSheet] VERIFICATION - classBonusesCache contents:");
+      for (var gradeKey in classBonusesCache) {
+        console.log("  " + gradeKey + ": " + classBonusesCache[gradeKey] + " (from D2, no calculation)");
+      }
     } else {
       return [];
     }
@@ -265,11 +279,12 @@ export const calculateClassSummaries = (students: Student[]): ClassSummary[] => 
     countMap.set(s.grade, currentCount + 1);
   });
 
-  // Get class bonuses from cache
+  // Get class bonuses from cache - רק מהשרת (מ-D2), לא חישוב אוטומטי
   const bonuses = getClassBonuses();
-
+  
   return Array.from(grades).map(grade => {
     const studentScores = map.get(grade) || 0;
+    // רק מהשרת (מ-D2) - לא חישוב אוטומטי, לא הוספה, רק מה שיש ב-cache
     const classBonus = bonuses[grade] || 0;
     const totalScore = studentScores + classBonus;
     
